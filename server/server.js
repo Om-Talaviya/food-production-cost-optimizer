@@ -11,9 +11,20 @@ const apiRoutes = require('./routes/apiRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// CORS configuration - restrictive in production, permissive in development
+const corsOptions = isProduction
+  ? {
+      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization']
+    }
+  : { origin: true, credentials: true }; // Allow all origins in development
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // API Routes
@@ -55,13 +66,20 @@ if (fs.existsSync(CLIENT_DIST)) {
   console.warn('⚠️ client/dist not found. Run `cd client && npm run build`, or use the Vite dev server for development.');
 }
 
-// Global Error Handler
+// Global Error Handler - sanitize errors in production
 app.use((err, req, res, next) => {
   console.error('Unhandled Application Error:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message
-  });
+  if (isProduction) {
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'An unexpected error occurred'
+    });
+  } else {
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: err.message
+    });
+  }
 });
 
 // Initialize DB & Start Server

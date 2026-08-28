@@ -60,13 +60,16 @@ The **Food Production Cost Optimizer** solves these challenges by combining a **
 ### 7. 📦 Batch Management & Comparison
 - Complete CRUD operations for production batches.
 - Batch cloning/duplication for fast scenario creation.
-- Pre-loaded industry recipe presets: *Mango Jam, Tomato Ketchup, Butter Biscuits, Tropical Fruit Juice, Raw Mango Pickle*.
+- Pre-loaded industry recipe presets: *Premium Mango Jam, Classic Tomato Ketchup, Crispy Butter Biscuits, Tropical Multi-Fruit Juice, Spicy Raw Mango Pickle*.
 - Side-by-side **Batch A vs Batch B** comparative audit tool.
 
 ### 8. 🔒 Security & Authentication
 - JWT token-based authentication with secure password hashing (`bcryptjs`).
-- Clearly labeled **DEMO access** mode ("Enter DEMO Mode") for instant evaluation without registration — loads sample data only and does not create a real user account.
-- Secrets are loaded from environment variables via `.env` (see `.env.example`). Note: `server/middleware/authMiddleware.js` ships with a development-only fallback JWT secret — set a strong `JWT_SECRET` in production. In its default demo configuration the app runs a guest-first experience with a JSON file store; treat it as a portfolio/demo deployment until a real database and strict auth policies are configured.
+- **DEMO access** mode ("Enter DEMO Mode") for instant evaluation without registration — creates an isolated guest user with its own demo batch data; does not access or modify real user data.
+- Secrets are loaded from environment variables via `.env` (see `.env.example`). Note: `server/middleware/authMiddleware.js` ships with a development-only fallback JWT secret — set a strong `JWT_SECRET` in production. In production, the app will fail to start if `JWT_SECRET` is not set.
+- Request validation via Joi schemas on all mutating endpoints.
+- CORS is restricted to a specific origin in production (configured via `CORS_ORIGIN` env var).
+- Error responses are sanitized in production (no stack traces or internal details leaked).
 
 ---
 
@@ -107,11 +110,12 @@ The business calculation engine (`server/utils/calculator.js` & `client/src/util
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | React 19, Vite, Custom CSS Utility System (no external CSS framework), Lucide Icons |
+| **Frontend** | React 19, Vite, Tailwind CSS, Lucide Icons |
 | **Backend** | Node.js, Express.js |
-| **Database** | Local JSON file store (demo/portfolio persistence); MongoDB/Mongoose connection support is scaffolded but is **not** used for application persistence |
+| **Database** | Local JSON file store (`server/data/store.json`) — zero-config demo/portfolio persistence |
 | **Authentication** | JSON Web Tokens (JWT), Bcrypt.js |
-| **AI Integration** | Google Gemini 3.6 Flash API / OpenAI GPT-4o-mini / Offline Rule Engine |
+| **Validation** | Joi schema validation on all mutating endpoints |
+| **AI Integration** | Google Gemini 1.5 Flash API / OpenAI GPT-4o-mini / Offline Rule Engine (deterministic fallback) |
 | **Testing** | Node.js Native Test Runner (`node --test`) |
 
 ---
@@ -132,11 +136,11 @@ Food Production Cost Optimizer/
 │   ├── vite.config.js
 │   └── package.json
 ├── server/                     # Node.js + Express Backend
-│   ├── middleware/             # Auth Middleware & Validation
+│   ├── middleware/             # Auth Middleware, Validation (Joi schemas), Request Validation
 │   ├── routes/                 # Express API Endpoint Routes
 │   ├── tests/                  # Backend Unit Tests (`calculator.test.js`)
 │   ├── utils/                  # Server Calculator, Optimizer Engine, Forecast Engine, AI Engine, DB Fallback
-│   ├── data/                   # Persistent Local JSON Backup Store
+│   ├── data/                   # Persistent Local JSON Backup Store (`store.json`)
 │   ├── server.js               # Express Server Entrypoint
 │   └── package.json
 ├── package.json                # Root Scripts (npm start, npm run dev, npm test)
@@ -235,10 +239,10 @@ This project runs as a **single service**: the Express backend serves the produc
 3. The application is available at `http://localhost:5000`. Any non-API route returns the built frontend (`client/dist`), while `/api/*` requests are handled by the Express backend. If `client/dist` has not been built, the server runs API-only and logs a warning.
 
 ### Persistence Note
-The application persists data to a local JSON file store (`server/data/store.json`). This is convenient for **demo and portfolio use** and runs with zero configuration, but it is **not** a persistent, production-grade cloud database. For real production deployments, integrate MongoDB (via `MONGODB_URI`) or another managed database and harden authentication. MongoDB/Mongoose connection support is scaffolded but is not currently used for application persistence.
+The application persists data to a local JSON file store (`server/data/store.json`). This is convenient for **demo and portfolio use** and runs with zero configuration, but it is **not** a production-grade cloud database. For real production deployments, integrate a managed database (PostgreSQL, MongoDB, etc.) and harden authentication. MongoDB/Mongoose connection support was removed — the application uses the local JSON store exclusively.
 
 ### Environment Variables
-Set `JWT_SECRET`, and optionally `GEMINI_API_KEY` for the AI Advisor (the app gracefully falls back to an offline rule engine when no key is configured). `MONGODB_URI` is optional and only activates MongoDB if provided.
+Set `JWT_SECRET` (required in production), and optionally `GEMINI_API_KEY` or `OPENAI_API_KEY` for the AI Advisor (the app gracefully falls back to an offline rule engine when no key is configured). Optionally set `CORS_ORIGIN` to restrict the allowed frontend origin in production.
 
 ---
 

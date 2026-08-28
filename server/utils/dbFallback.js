@@ -1,17 +1,15 @@
 /**
- * Hybrid Persistence Store (MongoDB Mongoose + JSON File Fallback).
- * Ensures zero-config execution even without an active MongoDB server.
+ * JSON File Persistence Store.
+ * Zero-config execution with local JSON file storage.
  */
 
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'store.json');
 
 // Memory store state
-let isMongoConnected = false;
 let localStore = {
   users: [],
   batches: [],
@@ -20,80 +18,64 @@ let localStore = {
 };
 
 // Seed default realistic food processing demo batches
+// Creates a realistic single-product (Mango Jam) history across 6 months
+// to enable meaningful cost forecasting for the portfolio demo.
 function seedInitialDemoData() {
   const { calculateBatchEconomics } = require('./calculator');
 
-  const demoBatches = [
-    {
-      id: 'batch_mango_jam_01',
+  // Generate 6 months of Mango Jam production history (Mar 2026 - Aug 2026)
+  // with realistic cost variations (seasonal mango pricing, improving yield)
+  const baseIngredients = [
+    { name: 'Mango Pulp (Alphonso)', quantity: 550, unit: 'kg', unitPrice: 80 },
+    { name: 'Refined Sugar', quantity: 420, unit: 'kg', unitPrice: 40 },
+    { name: 'Pectin (Fruit Grade)', quantity: 8, unit: 'kg', unitPrice: 750 },
+    { name: 'Citric Acid', quantity: 4, unit: 'kg', unitPrice: 180 }
+  ];
+
+  const monthlyVariations = [
+    // Mar 2026 - end of season, higher pulp price, higher wastage
+    { month: 2, pulpPrice: 84, sugarPrice: 42, wastage: 5.5, sellingPrice: 165, overhead: 10100 },
+    // Apr 2026 - prices start dropping
+    { month: 3, pulpPrice: 83, sugarPrice: 42, wastage: 5.0, sellingPrice: 165, overhead: 10100 },
+    // May 2026 - peak harvest, lower prices, better yield
+    { month: 4, pulpPrice: 82, sugarPrice: 41, wastage: 4.8, sellingPrice: 165, overhead: 10100 },
+    // Jun 2026 - peak harvest continues
+    { month: 5, pulpPrice: 81, sugarPrice: 41, wastage: 4.5, sellingPrice: 165, overhead: 10100 },
+    // Jul 2026 - end of peak
+    { month: 6, pulpPrice: 80, sugarPrice: 40, wastage: 4.3, sellingPrice: 165, overhead: 10100 },
+    // Aug 2026 - end of season
+    { month: 7, pulpPrice: 79, sugarPrice: 40, wastage: 4.0, sellingPrice: 165, overhead: 10100 }
+  ];
+
+  const demoBatches = monthlyVariations.map((v, i) => {
+    const ingredients = baseIngredients.map(ing => {
+      if (ing.name === 'Mango Pulp (Alphonso)') return { ...ing, unitPrice: v.pulpPrice };
+      if (ing.name === 'Refined Sugar') return { ...ing, unitPrice: v.sugarPrice };
+      return ing;
+    });
+
+    const baseDate = new Date('2026-03-01T10:00:00Z');
+    baseDate.setMonth(baseDate.getMonth() + i);
+
+    return {
+      id: `batch_mango_jam_2026_${String(i + 3).padStart(2, '0')}`,
       userId: 'user_demo_01',
       productName: 'Premium Mango Jam',
       productCategory: 'Preserves & Jams',
       batchQuantity: 1000,
       unitOfMeasure: 'kg',
-      sellingPricePerUnit: 160,
-      packagingCost: 18000,
-      labourCost: 12000,
-      energyCost: 6500,
+      sellingPricePerUnit: v.sellingPrice,
+      packagingCost: 18500,
+      labourCost: 12200,
+      energyCost: 6700,
       waterUtilitiesCost: 1500,
-      transportLogisticsCost: 4000,
-      overheadCost: 10000,
-      wastagePercentage: 6.5,
-      ingredients: [
-        { name: 'Mango Pulp (Alphonso)', quantity: 550, unit: 'kg', unitPrice: 85 },
-        { name: 'Refined Sugar', quantity: 420, unit: 'kg', unitPrice: 42 },
-        { name: 'Pectin (Fruit Grade)', quantity: 8, unit: 'kg', unitPrice: 750 },
-        { name: 'Citric Acid', quantity: 4, unit: 'kg', unitPrice: 180 }
-      ],
-      createdAt: new Date('2026-08-01T10:00:00Z').toISOString()
-    },
-    {
-      id: 'batch_tomato_sauce_02',
-      userId: 'user_demo_01',
-      productName: 'Classic Tomato Ketchup',
-      productCategory: 'Sauces & Condiments',
-      batchQuantity: 2000,
-      unitOfMeasure: 'kg',
-      sellingPricePerUnit: 110,
-      packagingCost: 24000,
-      labourCost: 18000,
-      energyCost: 11000,
-      waterUtilitiesCost: 2500,
-      transportLogisticsCost: 7500,
-      overheadCost: 15000,
-      wastagePercentage: 4.8,
-      ingredients: [
-        { name: 'Tomato Concentrate (28 Brix)', quantity: 1200, unit: 'kg', unitPrice: 52 },
-        { name: 'Liquid Glucose & Sugar', quantity: 650, unit: 'kg', unitPrice: 40 },
-        { name: 'Vinegar (4% Acidity)', quantity: 110, unit: 'kg', unitPrice: 22 },
-        { name: 'Salt & Spices Blend', quantity: 40, unit: 'kg', unitPrice: 65 }
-      ],
-      createdAt: new Date('2026-08-05T14:30:00Z').toISOString()
-    },
-    {
-      id: 'batch_butter_biscuit_03',
-      userId: 'user_demo_01',
-      productName: 'Crispy Butter Biscuits',
-      productCategory: 'Bakery & Confectionery',
-      batchQuantity: 500,
-      unitOfMeasure: 'kg',
-      sellingPricePerUnit: 220,
-      packagingCost: 12000,
-      labourCost: 14000,
-      energyCost: 9500,
-      waterUtilitiesCost: 1200,
-      transportLogisticsCost: 3500,
-      overheadCost: 9000,
-      wastagePercentage: 3.2,
-      ingredients: [
-        { name: 'Refined Wheat Flour (Maida)', quantity: 260, unit: 'kg', unitPrice: 32 },
-        { name: 'Pure Dairy Butter', quantity: 110, unit: 'kg', unitPrice: 420 },
-        { name: 'Icing Sugar', quantity: 115, unit: 'kg', unitPrice: 45 },
-        { name: 'Baking Powder & Emulsifiers', quantity: 15, unit: 'kg', unitPrice: 120 }
-      ],
-      createdAt: new Date('2026-08-07T09:15:00Z').toISOString()
-    }
-  ];
+      transportLogisticsCost: 4200,
+      overheadCost: v.overhead,
+      wastagePercentage: v.wastage,
+      ingredients,
+      createdAt: new Date(baseDate).toISOString()
+    };
+  });
 
   localStore.batches = demoBatches.map(b => ({
     ...b,
@@ -172,31 +154,12 @@ function saveLocalStore() {
 
 async function initializeDatabase() {
   loadLocalStore();
-
-  const mongoUri = process.env.MONGODB_URI;
-  if (!mongoUri) {
-    console.log('ℹ️ MONGODB_URI not set. Running transparently with local JSON database.');
-    return false;
-  }
-
-  try {
-    await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 2000
-    });
-    isMongoConnected = true;
-    console.log('✅ Connected to MongoDB successfully.');
-    return true;
-  } catch (err) {
-    console.warn('⚠️ MongoDB connection attempt failed/timed out. Falling back to local JSON database:', err.message);
-    isMongoConnected = false;
-    return false;
-  }
+  console.log('ℹ️ Using local JSON database (server/data/store.json).');
+  return false;
 }
 
 // Data Access Helpers
 const db = {
-  isMongo: () => isMongoConnected,
-
   // Users
   findUserByEmail: async (email) => {
     return localStore.users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -208,14 +171,19 @@ const db = {
     return newUser;
   },
 
-  // Batches
+  // Batches - with user isolation
   getBatches: async (userId) => {
-    return localStore.batches;
+    if (!userId) return [];
+    return localStore.batches.filter(b => b.userId === userId);
   },
-  getBatchById: async (id) => {
-    return localStore.batches.find(b => b.id === id);
+  getBatchById: async (id, userId) => {
+    const batch = localStore.batches.find(b => b.id === id);
+    if (!batch) return null;
+    if (userId && batch.userId !== userId) return null; // enforce ownership
+    return batch;
   },
-  saveBatch: async (batchData) => {
+  saveBatch: async (batchData, userId) => {
+    if (!userId) throw new Error('User ID required for batch operations');
     const { calculateBatchEconomics } = require('./calculator');
     const id = batchData.id || 'batch_' + Date.now();
     const economics = calculateBatchEconomics(batchData);
@@ -224,12 +192,17 @@ const db = {
       ...batchData,
       id,
       economics,
+      userId,
       updatedAt: new Date().toISOString(),
       createdAt: batchData.createdAt || new Date().toISOString()
     };
 
     const existingIdx = localStore.batches.findIndex(b => b.id === id);
     if (existingIdx >= 0) {
+      // Verify ownership before update
+      if (localStore.batches[existingIdx].userId !== userId) {
+        throw new Error('Unauthorized: cannot modify another user\'s batch');
+      }
       localStore.batches[existingIdx] = fullBatch;
     } else {
       localStore.batches.unshift(fullBatch);
@@ -237,13 +210,19 @@ const db = {
     saveLocalStore();
     return fullBatch;
   },
-  deleteBatch: async (id) => {
-    localStore.batches = localStore.batches.filter(b => b.id !== id);
+  deleteBatch: async (id, userId) => {
+    if (!userId) throw new Error('User ID required for batch operations');
+    const batchIdx = localStore.batches.findIndex(b => b.id === id);
+    if (batchIdx === -1) return false;
+    if (localStore.batches[batchIdx].userId !== userId) {
+      throw new Error('Unauthorized: cannot delete another user\'s batch');
+    }
+    localStore.batches.splice(batchIdx, 1);
     saveLocalStore();
     return true;
   },
 
-  // Suppliers
+  // Suppliers (global - not user-scoped for demo simplicity)
   getSuppliers: async () => {
     return localStore.suppliers;
   },

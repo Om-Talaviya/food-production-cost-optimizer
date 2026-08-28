@@ -9,12 +9,13 @@ const { analyzeAndOptimizeBatch } = require('../utils/optimizerEngine');
 const { generateCostForecast, getSampleForecastData } = require('../utils/forecastEngine');
 const { queryAIAdvisor } = require('../utils/aiEngine');
 const { authMiddleware, JWT_SECRET } = require('../middleware/authMiddleware');
+const { validate, schemas } = require('../middleware/validation');
 
 // ==========================================
 // 1. AUTHENTICATION ENDPOINTS
 // ==========================================
 
-router.post('/auth/register', async (req, res) => {
+router.post('/auth/register', validate(schemas.register), async (req, res) => {
   try {
     const { name, email, password, companyName } = req.body;
     if (!email || !password || !name) {
@@ -49,19 +50,67 @@ router.post('/auth/register', async (req, res) => {
   }
 });
 
-router.post('/auth/login', async (req, res) => {
+router.post('/auth/login', validate(schemas.login), async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // DEMO access bypass (sample data only, not a real user account)
+    // DEMO MODE: Guest login for portfolio evaluation only.
+    // This creates an isolated demo user that can only access its own data.
+    // Real users should register and login normally.
     if (email === 'guest@demo.com' && password === 'guest123') {
-      const token = jwt.sign({ id: 'user_guest', email: 'guest@demo.com', name: 'DEMO Guest' }, JWT_SECRET, { expiresIn: '7d' });
+      // Ensure guest user exists in store (for demo data isolation)
+      let guestUser = await db.findUserByEmail('guest@demo.com');
+      if (!guestUser) {
+        guestUser = await db.createUser({
+          name: 'DEMO Guest',
+          email: 'guest@demo.com',
+          passwordHash: 'demo-no-password', // not used for guest login
+          companyName: 'Demo Foods Corp (Sample Data)',
+          createdAt: new Date().toISOString()
+        });
+        // Seed a few demo batches for the guest user if they don't have any
+        const guestBatches = await db.getBatches(guestUser.id);
+        if (guestBatches.length === 0) {
+          const { calculateBatchEconomics } = require('../utils/calculator');
+          const demoBatch = {
+            id: 'batch_demo_mango_jam',
+            userId: guestUser.id,
+            productName: 'Premium Mango Jam (Demo)',
+            productCategory: 'Preserves & Jams',
+            batchQuantity: 1000,
+            unitOfMeasure: 'kg',
+            sellingPricePerUnit: 160,
+            packagingCost: 18000,
+            labourCost: 12000,
+            energyCost: 6500,
+            waterUtilitiesCost: 1500,
+            transportLogisticsCost: 4000,
+            overheadCost: 10000,
+            wastagePercentage: 6.5,
+            ingredients: [
+              { name: 'Mango Pulp (Alphonso)', quantity: 550, unit: 'kg', unitPrice: 85 },
+              { name: 'Refined Sugar', quantity: 420, unit: 'kg', unitPrice: 42 },
+              { name: 'Pectin (Fruit Grade)', quantity: 8, unit: 'kg', unitPrice: 750 },
+              { name: 'Citric Acid', quantity: 4, unit: 'kg', unitPrice: 180 }
+            ],
+            createdAt: new Date().toISOString()
+          };
+          await db.saveBatch(demoBatch, guestUser.id);
+        }
+      }
+
+      const token = jwt.sign(
+        { id: guestUser.id, email: guestUser.email, name: guestUser.name, isDemo: true },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
       return res.json({
         token,
-        user: { id: 'user_guest', name: 'DEMO Guest', email: 'guest@demo.com', companyName: 'Demo Foods Corp (Sample Data)' }
+        user: { id: guestUser.id, name: guestUser.name, email: guestUser.email, companyName: guestUser.companyName, isDemo: true }
       });
     }
 
@@ -93,7 +142,7 @@ router.get('/auth/me', authMiddleware, async (req, res) => {
 // 2. PRODUCTION COST ENGINE ENDPOINTS
 // ==========================================
 
-router.post('/calculate', (req, res) => {
+router.post('/calculate', validate(schemas.calculate), (req, res) => {
   try {
     const economics = calculateBatchEconomics(req.body);
     res.json({ success: true, data: economics });
@@ -102,7 +151,7 @@ router.post('/calculate', (req, res) => {
   }
 });
 
-router.post('/whatif/simulate', (req, res) => {
+router.post('/whatif/simulate', validate(schemas.whatIf), (req, res) => {
   try {
     const { baseline, modifications } = req.body;
     if (!baseline) {
@@ -115,7 +164,7 @@ router.post('/whatif/simulate', (req, res) => {
   }
 });
 
-router.post('/optimizer/analyze', (req, res) => {
+router.post('/optimizer/analyze', validate(schemas.optimizer), (req, res) => {
   try {
     const batchData = req.body;
     const economics = batchData.economics || calculateBatchEconomics(batchData);
@@ -130,7 +179,7 @@ router.post('/optimizer/analyze', (req, res) => {
 // 3. AI ADVISOR ENDPOINT
 // ==========================================
 
-router.post('/ai/advisor', authMiddleware, async (req, res) => {
+router.post('/ai/advisor', authMiddleware, validate(schemas.aiAdvisor), async (req, res) => {
   try {
     const { question, batchData } = req.body;
     if (!question) {
@@ -162,7 +211,7 @@ router.get('/batches', authMiddleware, async (req, res) => {
 
 router.get('/batches/:id', authMiddleware, async (req, res) => {
   try {
-    const batch = await db.getBatchById(req.params.id);
+    const batch = await db.getBatchById(req.params.id, req.user.id);
     if (!batch) {
       return res.status(404).json({ error: 'Batch not found' });
     }
@@ -172,7 +221,7 @@ router.get('/batches/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/batches', authMiddleware, async (req, res) => {
+router.post('/batches', authMiddleware, validate(schemas.batch), async (req, res) => {
   try {
     if (!req.body.productName || !req.body.batchQuantity) {
       return res.status(400).json({ error: 'Product Name and Batch Quantity are required' });
@@ -180,16 +229,16 @@ router.post('/batches', authMiddleware, async (req, res) => {
     const saved = await db.saveBatch({
       ...req.body,
       userId: req.user.id
-    });
+    }, req.user.id);
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.put('/batches/:id', authMiddleware, async (req, res) => {
+router.put('/batches/:id', authMiddleware, validate(schemas.batch), async (req, res) => {
   try {
-    const existing = await db.getBatchById(req.params.id);
+    const existing = await db.getBatchById(req.params.id, req.user.id);
     if (!existing) {
       return res.status(404).json({ error: 'Batch not found' });
     }
@@ -198,7 +247,7 @@ router.put('/batches/:id', authMiddleware, async (req, res) => {
       ...req.body,
       id: req.params.id,
       userId: req.user.id
-    });
+    }, req.user.id);
     res.json({ success: true, data: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -207,16 +256,19 @@ router.put('/batches/:id', authMiddleware, async (req, res) => {
 
 router.delete('/batches/:id', authMiddleware, async (req, res) => {
   try {
-    await db.deleteBatch(req.params.id);
+    const deleted = await db.deleteBatch(req.params.id, req.user.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
     res.json({ success: true, message: 'Batch deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.message });
   }
 });
 
 router.post('/batches/:id/duplicate', authMiddleware, async (req, res) => {
   try {
-    const existing = await db.getBatchById(req.params.id);
+    const existing = await db.getBatchById(req.params.id, req.user.id);
     if (!existing) {
       return res.status(404).json({ error: 'Batch not found' });
     }
@@ -226,7 +278,7 @@ router.post('/batches/:id/duplicate', authMiddleware, async (req, res) => {
       productName: `${existing.productName} (Copy)`,
       createdAt: new Date().toISOString()
     };
-    const saved = await db.saveBatch(copy);
+    const saved = await db.saveBatch(copy, req.user.id);
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -237,9 +289,9 @@ router.post('/batches/:id/duplicate', authMiddleware, async (req, res) => {
 // 5. FORECASTING ENDPOINT
 // ==========================================
 
-router.get('/forecast', async (req, res) => {
+router.get('/forecast', authMiddleware, async (req, res) => {
   try {
-    const batches = await db.getBatches();
+    const batches = await db.getBatches(req.user.id);
     const records = batches.map(b => ({
       date: b.createdAt || new Date().toISOString(),
       costPerUnit: b.economics?.costPerUnit || 0,
@@ -278,7 +330,7 @@ router.get('/suppliers', async (req, res) => {
   }
 });
 
-router.post('/suppliers', authMiddleware, async (req, res) => {
+router.post('/suppliers', authMiddleware, validate(schemas.supplier), async (req, res) => {
   try {
     const saved = await db.saveSupplier(req.body);
     res.status(201).json({ success: true, data: saved });

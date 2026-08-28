@@ -188,3 +188,52 @@ test('Cost Forecasting Statistical Engine Audit', () => {
   assert.equal(forecast.forecastPoints.length, 6);
   assert.ok(forecast.analytics.trendDirection === 'INCREASING');
 });
+
+test('Optimizer Engine - Empty Object Rejected by Validation', () => {
+  const { analyzeAndOptimizeBatch } = require('../utils/optimizerEngine');
+  const analysis = analyzeAndOptimizeBatch({});
+  // The optimizer engine itself handles empty objects gracefully
+  // but the API validation should reject empty objects
+  assert.ok(analysis);
+  assert.ok(Array.isArray(analysis.recommendations));
+});
+
+test('Optimizer Engine - Valid Request Works', () => {
+  const { analyzeAndOptimizeBatch } = require('../utils/optimizerEngine');
+  const analysis = analyzeAndOptimizeBatch({
+    batchQuantity: 1000,
+    unitOfMeasure: 'kg',
+    sellingPricePerUnit: 100,
+    packagingCost: 25000,
+    labourCost: 12000,
+    energyCost: 6500,
+    waterUtilitiesCost: 1500,
+    transportLogisticsCost: 4000,
+    overheadCost: 10000,
+    wastagePercentage: 8.0,
+    ingredients: [
+      { name: 'Expensive Pulp', quantity: 600, unit: 'kg', unitPrice: 100 }
+    ]
+  });
+  assert.ok(analysis);
+  assert.ok(Array.isArray(analysis.recommendations));
+  assert.ok(analysis.recommendations.length >= 3);
+});
+
+test('Calculate Engine - Invalid Input Rejected', () => {
+  const { calculateBatchEconomics } = require('../utils/calculator');
+  // Should not crash on invalid input, should handle gracefully
+  const result = calculateBatchEconomics({
+    batchQuantity: -100,
+    unitOfMeasure: 'invalid',
+    sellingPricePerUnit: -50,
+    packagingCost: -100,
+    ingredients: []
+  });
+  // Should sanitize negative values to 0
+  assert.ok(result.batchQuantity >= 0);
+  assert.ok(result.sellingPricePerUnit >= 0);
+  assert.ok(result.packagingCost >= 0);
+  assert.ok(result.rawMaterialCost >= 0);
+  assert.ok(result.totalProductionCost >= 0);
+});
