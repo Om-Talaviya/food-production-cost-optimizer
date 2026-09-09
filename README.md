@@ -1,8 +1,12 @@
 # Food Production Cost Optimizer 🍲📊
 
-A full-stack decision-support and analytics platform designed for food manufacturers, production managers, and food technology professionals to calculate, simulate, forecast, and optimize food production costs.
+<p align="left">
+  <a href="https://github.com/Om-Talaviya"><img src="https://img.shields.io/badge/Architect-Om%20Talaviya-38bdf8?style=flat-square&logo=github&logoColor=white" alt="Author" /></a>
+  <img src="https://img.shields.io/badge/Stack-React%20%26%20Node.js-61dafb?style=flat-square&logo=react&logoColor=white" alt="React & Node" />
+  <a href="https://food-production-cost-optimizer.onrender.com/"><img src="https://img.shields.io/badge/Live%20Demo-Online-success?style=flat-square&logo=render&logoColor=white" alt="Live Demo" /></a>
+</p>
 
-**[🚀 Live Demo](https://food-production-cost-optimizer.onrender.com/)**
+A full-stack decision-support and analytics platform designed for food manufacturers, production managers, and food technology professionals to calculate, simulate, forecast, and optimize food production costs.
 
 ---
 
