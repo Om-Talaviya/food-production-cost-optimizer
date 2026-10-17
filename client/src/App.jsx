@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import Calculator from './pages/Calculator';
 import WhatIfSimulator from './pages/WhatIfSimulator';
 import Optimizer from './pages/Optimizer';
@@ -144,6 +145,14 @@ export default function App() {
             onNavigate={(tab) => setActiveTab(tab)}
             onDuplicateBatch={handleDuplicateBatch}
             onDeleteBatch={handleDeleteBatch}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboard
+            batches={batches}
+            activeBatch={activeBatch}
+            onNavigate={(tab) => setActiveTab(tab)}
           />
         )}
 

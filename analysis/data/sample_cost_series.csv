@@ -1,0 +1,61 @@
+date,product,cost_per_unit,raw_material_cost,production_quantity
+2026-01-15,Premium Mango Jam,137.57,69597.92,934.3
+2026-02-15,Premium Mango Jam,140.84,72887.24,945.37
+2026-03-15,Premium Mango Jam,136.11,70682.01,965.83
+2026-04-15,Premium Mango Jam,132.46,69898.99,982.72
+2026-05-15,Premium Mango Jam,145.89,73990.58,958.77
+2026-06-15,Premium Mango Jam,136.09,75733.26,1007.81
+2026-07-15,Premium Mango Jam,143.54,76946.64,988.96
+2026-08-15,Premium Mango Jam,133.82,76404.36,1039.81
+2026-09-15,Premium Mango Jam,136.86,79726.87,1044.51
+2026-10-15,Premium Mango Jam,132.3,77976.81,1064.97
+2026-11-15,Premium Mango Jam,141.42,79957.53,1046.85
+2026-12-15,Premium Mango Jam,132.17,78674.81,1086.36
+2026-01-15,Classic Tomato Ketchup,96.53,90536.65,1858.6
+2026-02-15,Classic Tomato Ketchup,94.18,96066.34,1940.68
+2026-03-15,Classic Tomato Ketchup,93.93,94897.71,1953.5
+2026-04-15,Classic Tomato Ketchup,95.45,101552.56,1985.29
+2026-05-15,Classic Tomato Ketchup,97.79,98999.72,1971.81
+2026-06-15,Classic Tomato Ketchup,92.82,98464.53,2036.48
+2026-07-15,Classic Tomato Ketchup,91.01,96408.08,2068.17
+2026-08-15,Classic Tomato Ketchup,92.13,102666.3,2105.25
+2026-09-15,Classic Tomato Ketchup,89.56,100307.84,2137.86
+2026-10-15,Classic Tomato Ketchup,89.48,102877.6,2164.45
+2026-11-15,Classic Tomato Ketchup,89.76,105253.57,2188.68
+2026-12-15,Classic Tomato Ketchup,89.28,103096.44,2205.11
+2026-01-15,Crispy Butter Biscuits,231.78,59561.5,483.75
+2026-02-15,Crispy Butter Biscuits,239.33,59653.66,479.27
+2026-03-15,Crispy Butter Biscuits,233.06,61191.49,498.52
+2026-04-15,Crispy Butter Biscuits,231.97,63186.11,507.89
+2026-05-15,Crispy Butter Biscuits,234.49,65984.77,514.52
+2026-06-15,Crispy Butter Biscuits,233.1,65897.16,519.22
+2026-07-15,Crispy Butter Biscuits,228.31,65700.7,527.18
+2026-08-15,Crispy Butter Biscuits,229.31,67431.59,536.8
+2026-09-15,Crispy Butter Biscuits,230.62,69410.21,540.85
+2026-10-15,Crispy Butter Biscuits,227.09,69197.76,548.01
+2026-11-15,Crispy Butter Biscuits,228.26,70889.09,557.75
+2026-12-15,Crispy Butter Biscuits,225.93,70456.73,566.15
+2026-01-15,Tropical Multi-Fruit Juice,62.72,165466.14,4860
+2026-02-15,Tropical Multi-Fruit Juice,62.43,168002.06,4954.72
+2026-03-15,Tropical Multi-Fruit Juice,63.02,174013.99,5016.62
+2026-04-15,Tropical Multi-Fruit Juice,64.19,165767.44,4951.21
+2026-05-15,Tropical Multi-Fruit Juice,61.94,176438.57,5172.8
+2026-06-15,Tropical Multi-Fruit Juice,61.75,176342.17,5255.68
+2026-07-15,Tropical Multi-Fruit Juice,60.7,172616.04,5307.21
+2026-08-15,Tropical Multi-Fruit Juice,60.18,175805.17,5390.19
+2026-09-15,Tropical Multi-Fruit Juice,59.51,178482.13,5448.8
+2026-10-15,Tropical Multi-Fruit Juice,60.72,185745.07,5534.26
+2026-11-15,Tropical Multi-Fruit Juice,60.33,186615.99,5591.88
+2026-12-15,Tropical Multi-Fruit Juice,63.7,193807.22,5537.83
+2026-01-15,Spicy Raw Mango Pickle,206.87,26473.97,283.53
+2026-02-15,Spicy Raw Mango Pickle,204.96,26754.23,288.53
+2026-03-15,Spicy Raw Mango Pickle,201.84,26694.26,292.72
+2026-04-15,Spicy Raw Mango Pickle,201.03,27301.41,299.49
+2026-05-15,Spicy Raw Mango Pickle,205.1,27894.52,300.8
+2026-06-15,Spicy Raw Mango Pickle,198.97,27435.97,306.4
+2026-07-15,Spicy Raw Mango Pickle,201.01,28682.16,311.11
+2026-08-15,Spicy Raw Mango Pickle,211.01,29065.1,306.04
+2026-09-15,Spicy Raw Mango Pickle,197.79,28739.86,318.49
+2026-10-15,Spicy Raw Mango Pickle,200.66,29722.76,322.18
+2026-11-15,Spicy Raw Mango Pickle,195.92,29519.77,327.13
+2026-12-15,Spicy Raw Mango Pickle,198.65,30319.68,331.49

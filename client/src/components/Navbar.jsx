@@ -1,12 +1,13 @@
 import React from 'react';
 import { 
   Factory, LayoutDashboard, Calculator, Sliders, Sparkles, 
-  Bot, TrendingUp, Truck, Layers, LogIn, LogOut, ShieldCheck, Home
+  Bot, TrendingUp, Truck, Layers, LogIn, LogOut, ShieldCheck, Home, BarChart3
 } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, user, onOpenAuth, onLogout }) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'calculator', label: 'Calculator', icon: Calculator },
     { id: 'whatif', label: 'What-If Simulator', icon: Sliders },
     { id: 'optimizer', label: 'Optimizer', icon: Sparkles },
