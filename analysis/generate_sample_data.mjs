@@ -251,7 +251,7 @@ async function main() {
   const datasetPath = join(DATA_DIR, 'sample_production_dataset.csv');
   const seriesPath = join(DATA_DIR, 'sample_cost_series.csv');
 
-  await writeFile(datasetPath, datasetCsv + '\n', 'utf8');
+  await writeFile(datasetPath, datasetCsv + '\r\n', 'utf8');
   await writeFile(seriesPath, seriesCsv + '\n', 'utf8');
 
   console.log('Sample data generated (SYNTHETIC demo data — not real business data).');

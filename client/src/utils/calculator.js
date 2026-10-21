@@ -53,8 +53,17 @@ export function calculateBatchEconomics(batchData) {
   const roiPercentage = totalProductionCost > 0 ? (grossProfit / totalProductionCost) * 100 : 0;
 
   const contributionMarginPerUnit = sellingPricePerUnit - variableCostPerUnit;
-  const breakEvenQuantity = contributionMarginPerUnit > 0 ? Math.ceil(overheadCost / contributionMarginPerUnit) : (totalProductionCost > 0 ? Math.ceil(sellableQuantity) : 0);
-  const breakEvenRevenue = breakEvenQuantity * sellingPricePerUnit;
+  // Break-even volume is only meaningful when each unit contributes a positive
+  // margin; otherwise it is unavailable (null) rather than a fabricated quantity,
+  // unless there are no fixed costs to recover, in which case it is zero.
+  const breakEvenQuantity =
+    contributionMarginPerUnit > 0
+      ? Math.ceil(overheadCost / contributionMarginPerUnit)
+      : overheadCost > 0
+        ? null
+        : 0;
+  const breakEvenRevenue =
+    breakEvenQuantity === null ? null : breakEvenQuantity * sellingPricePerUnit;
   const breakEvenSellingPrice = sellableQuantity > 0 ? totalProductionCost / sellableQuantity : 0;
 
   const safeTotal = totalProductionCost || 1;
@@ -93,8 +102,8 @@ export function calculateBatchEconomics(batchData) {
     profitMarginPercentage: round2(profitMarginPercentage),
     roiPercentage: round2(roiPercentage),
     contributionMarginPerUnit: round2(contributionMarginPerUnit),
-    breakEvenQuantity: round2(breakEvenQuantity),
-    breakEvenRevenue: round2(breakEvenRevenue),
+    breakEvenQuantity: breakEvenQuantity === null ? null : round2(breakEvenQuantity),
+    breakEvenRevenue: breakEvenRevenue === null ? null : round2(breakEvenRevenue),
     breakEvenSellingPrice: round2(breakEvenSellingPrice),
     costContributions
   };

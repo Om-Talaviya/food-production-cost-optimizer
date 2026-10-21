@@ -13,6 +13,12 @@ const SEVERITY_BADGE = {
   info: 'badge-cyan'
 };
 
+const UNAVAILABLE = '—';
+
+function formatAmount(value) {
+  return value === null || value === undefined ? UNAVAILABLE : formatCurrency(value);
+}
+
 function downloadCsv(filename, contents) {
   // Prepend a UTF-8 BOM so Excel opens ₹ and non-ASCII product names correctly.
   const blob = new Blob(['\uFEFF' + contents], { type: 'text/csv;charset=utf-8;' });
@@ -33,7 +39,7 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
   const { rows, kpis, structure, ranking, marginBands, wastage, insights } = bundle;
 
   const maxWastageCost = wastage.offenders.reduce(
-    (m, o) => Math.max(m, o.wastageCost), 0
+    (m, o) => (o.wastageCost !== null && o.wastageCost !== undefined ? Math.max(m, o.wastageCost) : m), 0
   );
   const maxBandCount = marginBands.reduce((m, b) => Math.max(m, b.count), 0);
 
@@ -111,7 +117,7 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
           <div className="text-2xl font-extrabold text-cyan-400">{formatCurrency(kpis.totalRevenue)}</div>
           <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
             <span>Avg selling price:</span>
-            <span className="font-semibold text-white">₹{kpis.avgSellingPrice}</span>
+            <span className="font-semibold text-white">{kpis.avgSellingPrice == null ? UNAVAILABLE : `₹${kpis.avgSellingPrice}`}</span>
           </div>
         </div>
 
@@ -128,7 +134,7 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
           </div>
           <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
             <span>Avg unit cost:</span>
-            <span className="font-semibold text-white">₹{kpis.avgUnitCost}</span>
+            <span className="font-semibold text-white">{kpis.avgUnitCost == null ? UNAVAILABLE : `₹${kpis.avgUnitCost}`}</span>
           </div>
         </div>
 
@@ -137,10 +143,10 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
             <span>Wastage Share of Cost</span>
             <Percent className="w-4 h-4 text-rose-400" />
           </div>
-          <div className="text-2xl font-extrabold text-rose-300">{kpis.wastageSharePct}%</div>
+          <div className="text-2xl font-extrabold text-rose-300">{kpis.wastageSharePct == null ? UNAVAILABLE : `${kpis.wastageSharePct}%`}</div>
           <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
             <span>Wastage loss:</span>
-            <span className="font-semibold text-white">{formatCurrency(kpis.totalWastageCost)}</span>
+            <span className="font-semibold text-white">{formatAmount(kpis.totalWastageCost)}</span>
           </div>
         </div>
       </div>
@@ -151,8 +157,8 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
           { label: 'Batches', value: kpis.batchCount, icon: Layers, color: 'text-cyan-400' },
           { label: 'Loss-making', value: kpis.lossMakingCount, icon: AlertTriangle, color: 'text-rose-400' },
           { label: 'Healthy margins', value: kpis.healthyMarginCount, icon: TrendingUp, color: 'text-emerald-400' },
-          { label: 'Sellable volume', value: `${kpis.totalSellableQuantity}`, icon: Package, color: 'text-amber-400' },
-          { label: 'Achieved wastage', value: `${kpis.achievedWastagePct}%`, icon: Percent, color: 'text-purple-400' }
+          { label: 'Sellable volume', value: kpis.totalSellableQuantity == null ? UNAVAILABLE : `${kpis.totalSellableQuantity}`, icon: Package, color: 'text-amber-400' },
+          { label: 'Achieved wastage', value: kpis.achievedWastagePct == null ? UNAVAILABLE : `${kpis.achievedWastagePct}%`, icon: Percent, color: 'text-purple-400' }
         ].map((k) => (
           <div key={k.label} className="card card-interactive p-4 flex items-center justify-between">
             <div>
@@ -272,7 +278,7 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
               <span>Wastage Analysis</span>
             </h3>
             <p className="text-xs text-gray-400">
-              Total wastage {formatCurrency(wastage.totalWastageCost)} · {wastage.totalWastageQuantity} units.
+              Total wastage {formatAmount(wastage.totalWastageCost)} · {wastage.totalWastageQuantity == null ? UNAVAILABLE : `${wastage.totalWastageQuantity} units`}.
             </p>
           </div>
           {wastage.offenders.length === 0 ? (
@@ -284,14 +290,14 @@ export default function AnalyticsDashboard({ batches = [], activeBatch, onNaviga
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-medium text-gray-200 truncate max-w-[55%]">{o.productName}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-gray-400 font-mono">{formatCurrency(o.wastageCost)}</span>
-                      <span className="font-bold text-rose-300 w-12 text-right">{o.wastagePercentage}%</span>
+                      <span className="text-gray-400 font-mono">{formatAmount(o.wastageCost)}</span>
+                      <span className="font-bold text-rose-300 w-12 text-right">{o.wastagePercentage == null ? UNAVAILABLE : `${o.wastagePercentage}%`}</span>
                     </div>
                   </div>
                   <div className="w-full h-2.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800">
                     <div
                       className="h-full rounded-full transition-all duration-500 bg-rose-500"
-                      style={{ width: `${maxWastageCost > 0 ? Math.max(2, (o.wastageCost / maxWastageCost) * 100) : 0}%` }}
+                      style={{ width: `${maxWastageCost > 0 && o.wastageCost !== null && o.wastageCost !== undefined ? Math.max(2, (o.wastageCost / maxWastageCost) * 100) : 0}%` }}
                     />
                   </div>
                 </div>

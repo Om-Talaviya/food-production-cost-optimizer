@@ -439,7 +439,9 @@ export default function Calculator({ activeBatch, onSaveBatch, onNavigate }) {
               <div className="p-3 rounded-lg bg-purple-950/30 border border-purple-500/30 space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Break-Even Batch Volume:</span>
-                  <span className="font-bold text-purple-300">{economics.breakEvenQuantity} {unitOfMeasure}</span>
+                  <span className="font-bold text-purple-300">
+                    {economics.breakEvenQuantity === null || economics.breakEvenQuantity === undefined ? '—' : economics.breakEvenQuantity} {unitOfMeasure}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Break-Even Selling Price:</span>

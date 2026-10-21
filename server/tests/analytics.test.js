@@ -340,3 +340,291 @@ test('No identity/secret leakage - exported columns are economics-only', async (
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Phase 2.2 regression tests
+// Fix 1: unknown/unavailable wastage must stay null (never silently become 0).
+// Fix 2: quantity-based portfolio averages require comparable units.
+// Fix 3: a non-positive contribution margin yields an unavailable break-even.
+// Fix 4: toCsv uses RFC 4180 CRLF record separators.
+// ---------------------------------------------------------------------------
+
+// Hand-authored batch so tests can inject the unknown (null) economics states
+// that the calculator itself never produces.
+function rawBatch(id, productName, productCategory, economics) {
+  return {
+    id,
+    productName,
+    productCategory,
+    createdAt: '2026-05-01T00:00:00.000Z',
+    economics
+  };
+}
+
+test('optionalNumber - preserves unknown as null and keeps a real zero', async () => {
+  const { optionalNumber } = await loadEngine();
+  assert.equal(optionalNumber(null), null);
+  assert.equal(optionalNumber(undefined), null);
+  assert.equal(optionalNumber(''), null);
+  assert.equal(optionalNumber(NaN), null);
+  assert.equal(optionalNumber(Infinity), null);
+  assert.equal(optionalNumber('not-a-number'), null);
+  assert.equal(optionalNumber(0), 0);
+  assert.equal(optionalNumber('0'), 0);
+  assert.equal(optionalNumber(42), 42);
+  assert.equal(optionalNumber('3.5'), 3.5);
+});
+
+test('buildAnalysisRow - unknown wastage stays null, explicit zero stays zero', async () => {
+  const { buildAnalysisRow } = await loadEngine();
+
+  const unknown = buildAnalysisRow(
+    rawBatch('u1', 'Unknown Wastage', 'Test', {
+      totalProductionCost: 500,
+      wastageCost: null,
+      wastageQuantity: null,
+      wastagePercentage: null
+    })
+  );
+  assert.equal(unknown.wastageCost, null);
+  assert.equal(unknown.wastageQuantity, null);
+  assert.equal(unknown.wastagePercentage, null);
+
+  // Wastage quantity is still derived when batch + sellable are known.
+  const derived = buildAnalysisRow(
+    rawBatch('u2', 'Derived', 'Test', {
+      batchQuantity: 100,
+      sellableQuantity: 90,
+      wastageQuantity: null,
+      wastageCost: null,
+      wastagePercentage: null
+    })
+  );
+  assert.equal(derived.wastageQuantity, 10);
+
+  const zero = buildAnalysisRow(
+    rawBatch('u3', 'Zero', 'Test', {
+      batchQuantity: 100,
+      sellableQuantity: 100,
+      wastageQuantity: 0,
+      wastageCost: 0,
+      wastagePercentage: 0
+    })
+  );
+  assert.equal(zero.wastageCost, 0);
+  assert.equal(zero.wastageQuantity, 0);
+  assert.equal(zero.wastagePercentage, 0);
+});
+
+test('computePortfolioKpis - unknown wastage is excluded from the denominator', async () => {
+  const { buildDataset, computePortfolioKpis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('k1', 'Known', 'Test', { wastageCost: 100, totalProductionCost: 1000 }),
+    rawBatch('k2', 'Unknown', 'Test', { wastageCost: null, totalProductionCost: 500 })
+  ]);
+  const k = computePortfolioKpis(rows);
+
+  assert.equal(k.totalWastageCost, 100);
+  // Denominator is the known base (1000), not the full 1500.
+  assert.equal(k.wastageSharePct, 10);
+});
+
+test('computePortfolioKpis - all-unknown wastage yields unavailable (null)', async () => {
+  const { buildDataset, computePortfolioKpis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('a1', 'A', 'Test', { wastageCost: null, totalProductionCost: 1000 }),
+    rawBatch('a2', 'B', 'Test', { wastageCost: null, totalProductionCost: 500 })
+  ]);
+  const k = computePortfolioKpis(rows);
+
+  assert.equal(k.totalWastageCost, null);
+  assert.equal(k.wastageSharePct, null);
+});
+
+test('computeWastageAnalysis - unknown rows are null and sorted last', async () => {
+  const { buildDataset, computeWastageAnalysis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('w1', 'Known High', 'Test', { wastageCost: 300, wastageQuantity: 3, wastagePercentage: 3 }),
+    rawBatch('w2', 'Unknown', 'Test', { wastageCost: null, wastageQuantity: null, wastagePercentage: null }),
+    rawBatch('w3', 'Known Low', 'Test', { wastageCost: 100, wastageQuantity: 1, wastagePercentage: 1 })
+  ]);
+  const w = computeWastageAnalysis(rows);
+
+  assert.equal(w.totalWastageCost, 400);
+  assert.equal(w.totalWastageQuantity, 4);
+  assert.equal(w.offenders.length, 3);
+  assert.equal(w.offenders[0].productName, 'Known High');
+  assert.equal(w.offenders[1].productName, 'Known Low');
+  assert.equal(w.offenders[2].productName, 'Unknown');
+  assert.equal(w.offenders[2].wastageCost, null);
+});
+
+test('computeWastageAnalysis - all-unknown yields unavailable (null) totals', async () => {
+  const { buildDataset, computeWastageAnalysis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('z1', 'A', 'Test', { wastageCost: null, wastageQuantity: null })
+  ]);
+  const w = computeWastageAnalysis(rows);
+
+  assert.equal(w.totalWastageCost, null);
+  assert.equal(w.totalWastageQuantity, null);
+});
+
+test('computePortfolioKpis - mixed units make quantity averages unavailable', async () => {
+  const { buildDataset, computePortfolioKpis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('m1', 'Mass', 'Test', {
+      unitOfMeasure: 'kg',
+      totalProductionCost: 1000,
+      totalRevenue: 2000,
+      sellableQuantity: 100
+    }),
+    rawBatch('m2', 'Volume', 'Test', {
+      unitOfMeasure: 'l',
+      totalProductionCost: 1000,
+      totalRevenue: 1500,
+      sellableQuantity: 50
+    })
+  ]);
+  const k = computePortfolioKpis(rows);
+
+  assert.equal(k.avgUnitCost, null);
+  assert.equal(k.avgSellingPrice, null);
+  // Quantity-based metrics are unavailable across mixed units.
+  assert.equal(k.totalQuantity, null);
+  assert.equal(k.totalSellableQuantity, null);
+  assert.equal(k.achievedWastagePct, null);
+  // Absolute monetary totals still aggregate across incompatible units.
+  assert.equal(k.totalProductionCost, 2000);
+  assert.equal(k.totalRevenue, 3500);
+});
+
+test('computeWastageAnalysis - mixed units make total wastage quantity unavailable', async () => {
+  const { buildDataset, computeWastageAnalysis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('w1', 'Kg Waste', 'Test', { unitOfMeasure: 'kg', wastageCost: 100, wastageQuantity: 5 }),
+    rawBatch('w2', 'Litre Waste', 'Test', { unitOfMeasure: 'l', wastageCost: 200, wastageQuantity: 10 })
+  ]);
+  const w = computeWastageAnalysis(rows);
+
+  assert.equal(w.totalWastageCost, 300);
+  assert.equal(w.totalWastageQuantity, null);
+});
+
+test('computePortfolioKpis - unknown units make averages unavailable', async () => {
+  const { computePortfolioKpis } = await loadEngine();
+  const k = computePortfolioKpis([
+    { unitOfMeasure: null, totalProductionCost: 1000, sellableQuantity: 100 },
+    { unitOfMeasure: 'kg', totalProductionCost: 500, sellableQuantity: 50 }
+  ]);
+
+  assert.equal(k.avgUnitCost, null);
+});
+
+test('computePortfolioKpis - consistent units keep averages numeric', async () => {
+  const { buildDataset, computePortfolioKpis } = await loadEngine();
+  const rows = buildDataset([
+    rawBatch('c1', 'A', 'Test', { unitOfMeasure: 'kg', totalProductionCost: 1000, totalRevenue: 2000, sellableQuantity: 100 }),
+    rawBatch('c2', 'B', 'Test', { unitOfMeasure: 'kg', totalProductionCost: 500, totalRevenue: 800, sellableQuantity: 50 })
+  ]);
+  const k = computePortfolioKpis(rows);
+
+  assert.equal(k.avgUnitCost, round2(1500 / 150));
+  assert.equal(k.avgSellingPrice, round2(2800 / 150));
+});
+
+test('generateInsights - break-even rule fires on unavailable and skips viable', async () => {
+  const { buildDataset, computePortfolioKpis, computeCostStructure, generateInsights } =
+    await loadEngine();
+
+  const lossyRows = buildDataset([makeBatch('b1', 'Cheap Sauce', 'Sauces', lossMakingInput)]);
+  const lossy = generateInsights(
+    lossyRows,
+    computePortfolioKpis(lossyRows),
+    computeCostStructure(lossyRows)
+  );
+  assert.ok(lossy.some((i) => i.id === 'break-even'), 'expected break-even insight for loss-maker');
+
+  const viableRows = buildDataset([makeBatch('b2', 'Mango Jam', 'Preserves', mangoJamInput)]);
+  const viable = generateInsights(
+    viableRows,
+    computePortfolioKpis(viableRows),
+    computeCostStructure(viableRows)
+  );
+  assert.ok(!viable.some((i) => i.id === 'break-even'), 'viable batch must not flag break-even');
+});
+
+test('buildAnalysisRow - unavailable break-even is preserved through the row', async () => {
+  const { buildAnalysisRow } = await loadEngine();
+  const row = buildAnalysisRow(
+    rawBatch('e1', 'Loss', 'Test', { breakEvenQuantity: null, breakEvenRevenue: null })
+  );
+  assert.equal(row.breakEvenQuantity, null);
+  assert.equal(row.breakEvenRevenue, null);
+});
+
+test('toCsv - null serializes as empty while a real zero stays 0', async () => {
+  const { toCsv } = await loadEngine();
+  const csv = toCsv(
+    [{ batchId: 'b1', wastageCost: null, overheadCost: 0 }],
+    [
+      { key: 'batchId', label: 'batch_id' },
+      { key: 'wastageCost', label: 'wastage_cost' },
+      { key: 'overheadCost', label: 'overhead_cost' }
+    ]
+  );
+  const data = csv.split('\r\n')[1].split(',');
+  assert.equal(data[1], '');
+  assert.equal(data[2], '0');
+});
+
+test('toCsv - unavailable break-even serializes as empty', async () => {
+  const { toCsv } = await loadEngine();
+  const csv = toCsv(
+    [{ batchId: 'b1', breakEvenQuantity: null, breakEvenRevenue: 0 }],
+    [
+      { key: 'batchId', label: 'batch_id' },
+      { key: 'breakEvenQuantity', label: 'break_even_quantity' },
+      { key: 'breakEvenRevenue', label: 'break_even_revenue' }
+    ]
+  );
+  const data = csv.split('\r\n')[1].split(',');
+  assert.equal(data[1], '');
+  assert.equal(data[2], '0');
+});
+
+test('toCsv - RFC 4180 CRLF separates records with no extra trailing record', async () => {
+  const { toCsv, ANALYSIS_COLUMNS } = await loadEngine();
+  const rows = [{ batchId: 'b1' }, { batchId: 'b2' }, { batchId: 'b3' }];
+  const csv = toCsv(rows, ANALYSIS_COLUMNS);
+
+  assert.ok(csv.includes('\r\n'));
+  assert.equal(csv.split('\r\n').length, rows.length + 1);
+  assert.ok(!csv.endsWith('\r\n'));
+  assert.ok(!csv.endsWith('\n'));
+
+  const header = csv.split('\r\n')[0].split(',');
+  assert.equal(header.length, ANALYSIS_COLUMNS.length);
+  assert.equal(header[header.length - 1], 'created_at');
+});
+
+test('toCsv - embedded newlines stay LF and only the separator is CRLF', async () => {
+  const { toCsv } = await loadEngine();
+  const csv = toCsv(
+    [{ batchId: 'b1', productCategory: 'Line\nBreak' }],
+    [
+      { key: 'batchId', label: 'batch_id' },
+      { key: 'productCategory', label: 'product_category' }
+    ]
+  );
+
+  assert.ok(csv.includes('"Line\nBreak"'));
+  assert.equal(csv.split('\r\n').length, 2);
+});
+
+test('toCsv - empty dataset yields a header-only record', async () => {
+  const { toCsv, ANALYSIS_COLUMNS } = await loadEngine();
+  const csv = toCsv([], ANALYSIS_COLUMNS);
+  assert.equal(csv.split('\r\n').length, 1);
+  assert.ok(!csv.endsWith('\r\n'));
+});

@@ -67,6 +67,17 @@ export function toNumber(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Coerce to a finite number, but preserve "unknown" as `null` instead of
+ * collapsing it to 0. Null/undefined/empty string and non-finite values are
+ * unavailable; a real 0 stays 0.
+ */
+export function optionalNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Round to 2 decimals with the same convention used across the app. */
 export function round2(val) {
   return Math.round((toNumber(val) + Number.EPSILON) * 100) / 100;
@@ -108,9 +119,17 @@ export function buildAnalysisRow(batch) {
   const rawMaterialCost = toNumber(eco.rawMaterialCost);
   const batchQuantity = toNumber(eco.batchQuantity);
   const sellableQuantity = toNumber(eco.sellableQuantity);
-  const wastageQuantity = Number.isFinite(Number(eco.wastageQuantity))
-    ? toNumber(eco.wastageQuantity)
-    : Math.max(0, batchQuantity - sellableQuantity);
+  // Wastage stays "unknown" (null) when unavailable, and is only derived when
+  // both batch and sellable quantities are themselves known.
+  const knownWastageQuantity = optionalNumber(eco.wastageQuantity);
+  const knownBatchQuantity = optionalNumber(eco.batchQuantity);
+  const knownSellableQuantity = optionalNumber(eco.sellableQuantity);
+  const wastageQuantity =
+    knownWastageQuantity !== null
+      ? knownWastageQuantity
+      : knownBatchQuantity !== null && knownSellableQuantity !== null
+        ? Math.max(0, knownBatchQuantity - knownSellableQuantity)
+        : null;
 
   return {
     batchId: b.id || '',
@@ -120,7 +139,7 @@ export function buildAnalysisRow(batch) {
     batchQuantity,
     sellableQuantity,
     wastageQuantity,
-    wastagePercentage: toNumber(eco.wastagePercentage),
+    wastagePercentage: optionalNumber(eco.wastagePercentage),
     rawMaterialCost,
     packagingCost: toNumber(eco.packagingCost),
     labourCost: toNumber(eco.labourCost),
@@ -128,7 +147,7 @@ export function buildAnalysisRow(batch) {
     waterUtilitiesCost: toNumber(eco.waterUtilitiesCost),
     transportLogisticsCost: toNumber(eco.transportLogisticsCost),
     overheadCost: toNumber(eco.overheadCost),
-    wastageCost: toNumber(eco.wastageCost),
+    wastageCost: optionalNumber(eco.wastageCost),
     totalVariableCost: toNumber(eco.totalVariableCost),
     totalProductionCost: toNumber(eco.totalProductionCost),
     costPerUnit: toNumber(eco.costPerUnit),
@@ -138,8 +157,8 @@ export function buildAnalysisRow(batch) {
     profitMarginPercentage: toNumber(eco.profitMarginPercentage),
     roiPercentage: toNumber(eco.roiPercentage),
     contributionMarginPerUnit: toNumber(eco.contributionMarginPerUnit),
-    breakEvenQuantity: toNumber(eco.breakEvenQuantity),
-    breakEvenRevenue: toNumber(eco.breakEvenRevenue),
+    breakEvenQuantity: optionalNumber(eco.breakEvenQuantity),
+    breakEvenRevenue: optionalNumber(eco.breakEvenRevenue),
     ingredientCount: ingredients.length,
     topIngredientName,
     topIngredientCost: round2(topIngredientCost),
@@ -165,15 +184,52 @@ export function computePortfolioKpis(rows) {
   const totalProductionCost = round2(sum('totalProductionCost'));
   const totalRevenue = round2(sum('totalRevenue'));
   const totalProfit = round2(sum('grossProfit'));
-  const totalWastageCost = round2(sum('wastageCost'));
   const totalSellable = sum('sellableQuantity');
   const totalQuantity = sum('batchQuantity');
 
-  const avgUnitCost = round2(safeDiv(totalProductionCost, totalSellable));
-  const avgSellingPrice = round2(safeDiv(totalRevenue, totalSellable));
+  // Wastage value is only known where at least one row reports it; unknown rows
+  // are excluded from both the numerator and the denominator rather than being
+  // silently treated as zero-cost.
+  const wastageRows = list.filter((r) => optionalNumber(r.wastageCost) !== null);
+  const knownWastageCost = wastageRows.reduce((a, r) => a + toNumber(r.wastageCost), 0);
+  const knownWastageBase = wastageRows.reduce((a, r) => a + toNumber(r.totalProductionCost), 0);
+  const totalWastageCost =
+    list.length === 0 ? 0 : wastageRows.length > 0 ? round2(knownWastageCost) : null;
+
+  // Quantity-based averages are only meaningful when every row shares one known
+  // unit of measure; otherwise they are unavailable rather than misleading.
+  const unitInfo = list.reduce(
+    (acc, r) => {
+      const u = String(r.unitOfMeasure == null ? '' : r.unitOfMeasure).trim();
+      if (u === '') acc.unknown = true;
+      else acc.units.add(u);
+      return acc;
+    },
+    { units: new Set(), unknown: false }
+  );
+  const unitsComparable = list.length > 0 && unitInfo.units.size === 1 && !unitInfo.unknown;
+
+  const avgUnitCost =
+    list.length === 0 ? 0 : unitsComparable ? round2(safeDiv(totalProductionCost, totalSellable)) : null;
+  const avgSellingPrice =
+    list.length === 0 ? 0 : unitsComparable ? round2(safeDiv(totalRevenue, totalSellable)) : null;
   const portfolioMarginPct = round2(safeDiv(totalProfit, totalRevenue) * 100);
-  const wastageSharePct = round2(safeDiv(totalWastageCost, totalProductionCost) * 100);
-  const achievedWastagePct = round2(safeDiv(totalQuantity - totalSellable, totalQuantity) * 100);
+  const wastageSharePct =
+    list.length === 0
+      ? 0
+      : wastageRows.length > 0
+        ? round2(safeDiv(knownWastageCost, knownWastageBase) * 100)
+        : null;
+  const totalQuantityAgg =
+    list.length === 0 ? 0 : unitsComparable ? round2(totalQuantity) : null;
+  const totalSellableQuantity =
+    list.length === 0 ? 0 : unitsComparable ? round2(totalSellable) : null;
+  const achievedWastagePct =
+    list.length === 0
+      ? 0
+      : unitsComparable && totalQuantity > 0
+        ? round2(safeDiv(totalQuantity - totalSellable, totalQuantity) * 100)
+        : null;
 
   const lossMaking = list.filter((r) => toNumber(r.grossProfit) < 0);
   const healthy = list.filter((r) => toNumber(r.profitMarginPercentage) >= 20);
@@ -184,8 +240,8 @@ export function computePortfolioKpis(rows) {
     batchCount: list.length,
     productCount: products.size,
     categoryCount: categories.size,
-    totalQuantity: round2(totalQuantity),
-    totalSellableQuantity: round2(totalSellable),
+    totalQuantity: totalQuantityAgg,
+    totalSellableQuantity,
     totalProductionCost,
     totalRevenue,
     totalProfit,
@@ -283,15 +339,47 @@ export function computeWastageAnalysis(rows) {
     .map((r) => ({
       batchId: r.batchId,
       productName: r.productName,
-      wastagePercentage: toNumber(r.wastagePercentage),
-      wastageQuantity: toNumber(r.wastageQuantity),
-      wastageCost: toNumber(r.wastageCost)
+      unitOfMeasure: r.unitOfMeasure,
+      wastagePercentage: optionalNumber(r.wastagePercentage),
+      wastageQuantity: optionalNumber(r.wastageQuantity),
+      wastageCost: optionalNumber(r.wastageCost)
     }))
-    .sort((a, b) => b.wastageCost - a.wastageCost);
+    .sort((a, b) => {
+      if (a.wastageCost === null && b.wastageCost === null) return 0;
+      if (a.wastageCost === null) return 1;
+      if (b.wastageCost === null) return -1;
+      return b.wastageCost - a.wastageCost;
+    });
+
+  const knownCost = offenders.filter((o) => o.wastageCost !== null);
+  const knownQty = offenders.filter((o) => o.wastageQuantity !== null);
+
+  const qtyUnitInfo = knownQty.reduce(
+    (acc, o) => {
+      const u = String(o.unitOfMeasure == null ? '' : o.unitOfMeasure).trim();
+      if (u === '') acc.unknown = true;
+      else acc.units.add(u);
+      return acc;
+    },
+    { units: new Set(), unknown: false }
+  );
+  const qtyComparable = knownQty.length > 0 && qtyUnitInfo.units.size === 1 && !qtyUnitInfo.unknown;
 
   return {
-    totalWastageCost: round2(list.reduce((a, r) => a + toNumber(r.wastageCost), 0)),
-    totalWastageQuantity: round2(list.reduce((a, r) => a + toNumber(r.wastageQuantity), 0)),
+    totalWastageCost:
+      list.length === 0
+        ? 0
+        : knownCost.length > 0
+          ? round2(knownCost.reduce((a, o) => a + o.wastageCost, 0))
+          : null,
+    totalWastageQuantity:
+      list.length === 0
+        ? 0
+        : knownQty.length > 0
+          ? qtyComparable
+            ? round2(knownQty.reduce((a, o) => a + o.wastageQuantity, 0))
+            : null
+          : null,
     offenders
   };
 }
@@ -380,16 +468,17 @@ export function generateInsights(rows, kpis, structure) {
       severity: 'warning',
       category: 'Wastage',
       title: 'Wastage above 5% on at least one product',
-      detail: `${worstWaste.productName} loses ${toNumber(worstWaste.wastagePercentage)}% to wastage (${worstWaste.wastageCost} in cost). Reducing wastage is a direct margin lever.`,
+      detail: `${worstWaste.productName} loses ${toNumber(worstWaste.wastagePercentage)}% to wastage (${optionalNumber(worstWaste.wastageCost) === null ? 'cost unavailable' : worstWaste.wastageCost} in cost). Reducing wastage is a direct margin lever.`,
       metricLabel: 'Highest wastage %',
       metricValue: round2(toNumber(worstWaste.wastagePercentage))
     });
   }
 
   // 5. Break-even risk
-  const noBreakEven = list.filter(
-    (r) => toNumber(r.breakEvenQuantity) > toNumber(r.sellableQuantity)
-  );
+  const noBreakEven = list.filter((r) => {
+    const be = optionalNumber(r.breakEvenQuantity);
+    return be === null || be > toNumber(r.sellableQuantity);
+  });
   if (noBreakEven.length > 0) {
     insights.push({
       id: 'break-even',
@@ -457,7 +546,7 @@ export function toCsv(rows, columns = ANALYSIS_COLUMNS) {
   const body = list.map((row) =>
     columns.map((c) => escapeCsvField(row[c.key])).join(',')
   );
-  return [header, ...body].join('\n');
+  return [header, ...body].join('\r\n');
 }
 
 /** One-shot convenience used by the UI and the sample-data generator. */
