@@ -70,6 +70,8 @@ export function getSampleForecastData() {
     isSampleData: true,
     productName: SAMPLE_PRODUCT_NAME,
     productCategory: SAMPLE_PRODUCT_CATEGORY,
+    unitOfMeasure: 'kg',
+    hasMixedUnits: false,
     dataSource: 'Sample Demo Dataset',
     description: 'Illustrative monthly production history for one product (Premium Mango Jam). Sample data shown for demonstration only — not real production records.',
     historicalPoints,

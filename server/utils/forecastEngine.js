@@ -6,6 +6,12 @@
 
 const { round2 } = require('./calculator');
 
+function optionalNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function generateCostForecast(historicalRecords = [], forecastMonths = 6) {
   // Defensive check for empty or small dataset
   if (!Array.isArray(historicalRecords) || historicalRecords.length === 0) {
@@ -14,14 +20,16 @@ function generateCostForecast(historicalRecords = [], forecastMonths = 6) {
 
   // Sort chronological by date
   const sorted = [...historicalRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const n = sorted.length;
+  const validRecords = sorted.filter(r => optionalNumber(r.costPerUnit) !== null);
 
-  const dates = sorted.map(r => r.date);
-  const costs = sorted.map(r => Number(r.costPerUnit) || 0);
-  const rawMaterialCosts = sorted.map(r => Number(r.rawMaterialCost) || 0);
-  const quantities = sorted.map(r => Number(r.productionQuantity) || 0);
+  if (validRecords.length === 0) {
+    return getSampleForecastData();
+  }
 
-  // Perform Linear Regression for Trend
+  const n = validRecords.length;
+  const costs = validRecords.map(r => Number(r.costPerUnit));
+
+  // Perform Linear Regression for Trend over valid records
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
   for (let i = 0; i < n; i++) {
     sumX += i;
@@ -30,7 +38,8 @@ function generateCostForecast(historicalRecords = [], forecastMonths = 6) {
     sumXX += i * i;
   }
 
-  const slope = n > 1 ? (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX) : 0;
+  const denom = n * sumXX - sumX * sumX;
+  const slope = n > 1 && denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
   const intercept = n > 1 ? (sumY - slope * sumX) / n : (costs[0] || 100);
 
   // Holt's Double Exponential Smoothing (alpha=0.3, beta=0.1)
@@ -55,8 +64,9 @@ function generateCostForecast(historicalRecords = [], forecastMonths = 6) {
   }
   const stdErr = Math.sqrt(sumSquaredErr / Math.max(1, n - 2));
 
-  // Project future periods
-  const lastDate = new Date(dates[dates.length - 1] || Date.now());
+  // Project future periods starting after the last chronological historical date
+  const lastHistoricalRecord = sorted[sorted.length - 1];
+  const lastDate = new Date(lastHistoricalRecord.date || Date.now());
   const forecastPoints = [];
 
   for (let h = 1; h <= forecastMonths; h++) {
@@ -84,19 +94,32 @@ function generateCostForecast(historicalRecords = [], forecastMonths = 6) {
   const historicalPoints = sorted.map(r => ({
     date: r.date.slice(0, 7),
     monthLabel: new Date(r.date).toLocaleString('default', { month: 'short', year: 'numeric' }),
-    actualCostPerUnit: round2(r.costPerUnit),
-    actualTotalCost: round2(r.totalProductionCost),
-    productionQuantity: round2(r.productionQuantity),
-    rawMaterialCost: round2(r.rawMaterialCost),
-    sellingPrice: round2(r.sellingPrice),
+    actualCostPerUnit: optionalNumber(r.costPerUnit) !== null ? round2(r.costPerUnit) : null,
+    actualTotalCost: optionalNumber(r.totalProductionCost) !== null ? round2(r.totalProductionCost) : null,
+    productionQuantity: optionalNumber(r.productionQuantity) !== null ? round2(r.productionQuantity) : null,
+    rawMaterialCost: optionalNumber(r.rawMaterialCost) !== null ? round2(r.rawMaterialCost) : null,
+    sellingPrice: optionalNumber(r.sellingPrice) !== null ? round2(r.sellingPrice) : null,
+    unitOfMeasure: r.unitOfMeasure,
     isForecast: false
   }));
 
   const avgCost = costs.reduce((a, b) => a + b, 0) / n;
   const avgInflationRatePct = round2((slope / Math.max(1, avgCost)) * 100 * 12); // Annualized
 
+  const units = new Set(sorted.map(r => String(r.unitOfMeasure || '').trim()).filter(Boolean));
+  const hasUnknownUnit = sorted.some(r => !String(r.unitOfMeasure || '').trim());
+  const unitsComparable = sorted.length > 0 && units.size === 1 && !hasUnknownUnit;
+  const unitOfMeasure = unitsComparable ? [...units][0] : null;
+  const hasMixedUnits = units.size > 1 || (units.size > 0 && hasUnknownUnit);
+
+  const products = new Set(sorted.map(r => String(r.productName || '').trim()).filter(Boolean));
+  const productName = products.size === 1 ? [...products][0] : 'Production Batch Portfolio';
+
   return {
     isSampleData: false,
+    productName,
+    unitOfMeasure,
+    hasMixedUnits,
     historicalPoints,
     forecastPoints,
     analytics: {
@@ -179,6 +202,8 @@ function getSampleForecastData() {
     isSampleData: true,
     productName: SAMPLE_PRODUCT_NAME,
     productCategory: SAMPLE_PRODUCT_CATEGORY,
+    unitOfMeasure: 'kg',
+    hasMixedUnits: false,
     dataSource: 'Sample Demo Dataset',
     description: 'Illustrative monthly production history for one product (Premium Mango Jam). Sample data shown for demonstration only — not real production records.',
     historicalPoints,

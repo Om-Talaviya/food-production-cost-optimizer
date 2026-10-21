@@ -137,16 +137,72 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
           </button>
         </form>
 
-        <div className="relative border-t border-gray-800 pt-4 text-center space-y-3">
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase tracking-widest text-amber-400 font-bold block">DEMO Access</span>
-            <p className="text-xs text-gray-500">No account or sign-up needed. DEMO mode loads sample data only — it does not create a real user account.</p>
+        <div className="relative border-t border-gray-800 pt-3 text-center space-y-2">
+          <span className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold block">
+            Demo Businesses (1-Click Fill)
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(false);
+                setEmail('sunrise.bakery@example.com');
+                setPassword('Bakery@Demo2026');
+              }}
+              className="btn btn-secondary py-1.5 px-2 text-[11px] border-amber-500/30 text-amber-300 hover:bg-amber-950/40 text-left truncate"
+              title="Sunrise Artisan Bakery"
+            >
+              🥐 Sunrise Bakery
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(false);
+                setEmail('greenjar.foods@example.com');
+                setPassword('GreenJar@Demo2026');
+              }}
+              className="btn btn-secondary py-1.5 px-2 text-[11px] border-emerald-500/30 text-emerald-300 hover:bg-emerald-950/40 text-left truncate"
+              title="GreenJar Foods"
+            >
+              🥒 GreenJar Foods
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(false);
+                setEmail('crunchcraft.snacks@example.com');
+                setPassword('Snacks@Demo2026');
+              }}
+              className="btn btn-secondary py-1.5 px-2 text-[11px] border-cyan-500/30 text-cyan-300 hover:bg-cyan-950/40 text-left truncate"
+              title="CrunchCraft Snacks"
+            >
+              🍿 CrunchCraft Snacks
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(false);
+                setEmail('cream.culture@example.com');
+                setPassword('Dairy@Demo2026');
+              }}
+              className="btn btn-secondary py-1.5 px-2 text-[11px] border-purple-500/30 text-purple-300 hover:bg-purple-950/40 text-left truncate"
+              title="Cream & Culture"
+            >
+              🥛 Cream & Culture
+            </button>
+          </div>
+        </div>
+
+        <div className="relative border-t border-gray-800 pt-3 text-center space-y-2">
+          <div className="space-y-0.5">
+            <span className="text-[10px] uppercase tracking-widest text-amber-400 font-bold block">Guest DEMO</span>
+            <p className="text-[11px] text-gray-500">Unauthenticated in-memory sample session.</p>
           </div>
           <button
             onClick={handleGuestLogin}
             className="w-full btn btn-secondary py-2 text-xs border-amber-500/40 text-amber-300 hover:bg-amber-950/40"
           >
-            ⚡ Enter DEMO Mode (Sample Data)
+            ⚡ Enter Guest DEMO Mode
           </button>
         </div>
 
