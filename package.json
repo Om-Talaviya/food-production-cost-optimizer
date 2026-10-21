@@ -9,6 +9,9 @@
     "client": "npm run dev --prefix client",
     "test": "npm run test --prefix server",
     "build": "npm run build --prefix client",
+    "migrate": "npm run migrate --prefix server",
+    "seed:demo-businesses": "npm run seed:demo-businesses --prefix server",
+    "verify:live": "npm run verify:live --prefix server",
     "postinstall": "npm install --prefix server && npm install --prefix client"
   }
 }

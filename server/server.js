@@ -6,7 +6,7 @@ const fs = require('fs');
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const { initializeDatabase } = require('./utils/dbFallback');
+const { initializeDatabase, getDatabaseStatus, closeDatabase } = require('./utils/database');
 const apiRoutes = require('./routes/apiRoutes');
 
 const app = express();
@@ -30,11 +30,13 @@ app.use(express.json());
 // API Routes
 app.use('/api', apiRoutes);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
+// Health check endpoint with storage diagnostic reporting
+app.get('/health', async (req, res) => {
+  const storage = await getDatabaseStatus();
   res.json({
     status: 'HEALTHY',
     service: 'Food Production Cost Optimizer Backend',
+    storage,
     timestamp: new Date().toISOString()
   });
 });
@@ -84,11 +86,23 @@ app.use((err, req, res, next) => {
 
 // Initialize DB & Start Server
 initializeDatabase().then(() => {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`==================================================`);
     console.log(`🚀 Food Production Cost Optimizer API Server Running`);
     console.log(`📡 URL: http://localhost:${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`==================================================`);
   });
+
+  const handleShutdown = async (signal) => {
+    console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+    server.close(async () => {
+      await closeDatabase();
+      console.log('Database connection closed.');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
 });

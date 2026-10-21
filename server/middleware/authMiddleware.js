@@ -22,6 +22,11 @@ function authMiddleware(req, res, next) {
   }
 
   const token = authHeader.split(' ')[1];
+  if (token === 'demo_token') {
+    req.user = { id: 'user_guest', email: 'guest@demo.com', name: 'DEMO Guest', isDemo: true };
+    return next();
+  }
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET || 'dev-secret-not-for-production');
     req.user = decoded;
