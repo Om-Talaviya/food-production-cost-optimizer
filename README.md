@@ -130,9 +130,10 @@ The business calculation engine (`server/utils/calculator.js` & `client/src/util
 Food Production Cost Optimizer/
 ├── client/                     # Vite + React Frontend
 │   ├── src/
-│   │   ├── components/         # Navbar, AuthModal
-│   │   ├── pages/              # LandingPage, Dashboard, Calculator, WhatIfSimulator, Optimizer, AIAdvisor, Forecasting, SupplierAnalysis, BatchManager
-│   │   ├── utils/              # Client Calculator, Optimizer Engine, Forecast Engine, Sample Data Presets
+│   │   ├── components/         # Navbar, AuthModal, CostForecastChart, MarkdownRenderer
+│   │   ├── pages/              # LandingPage, Dashboard, Calculator, WhatIfSimulator, Optimizer,
+│   │   │                       # AIAdvisor, Forecasting, SupplierAnalysis, BatchManager, AnalyticsDashboard
+│   │   ├── utils/              # Calculator, Optimizer Engine, Forecast Engine, Analytics Engine
 │   │   ├── App.jsx             # Main Routing & Application Engine
 │   │   ├── main.jsx
 │   │   └── index.css           # Styling System & Glassmorphism Design Tokens
@@ -140,16 +141,20 @@ Food Production Cost Optimizer/
 │   ├── vite.config.js
 │   └── package.json
 ├── server/                     # Node.js + Express Backend
-│   ├── middleware/             # Auth Middleware, Validation (Joi schemas), Request Validation
-│   ├── routes/                 # Express API Endpoint Routes
-│   ├── tests/                  # Backend Unit Tests (`calculator.test.js`)
-│   ├── utils/                  # Server Calculator, Optimizer Engine, Forecast Engine, AI Engine, DB Fallback
-│   ├── data/                   # Persistent Local JSON Backup Store (`store.json`)
+│   ├── data/                   # Canonical Demo Data (demoBusinessesData.js) & Local JSON Store
+│   ├── middleware/             # Auth Middleware, Validation (Joi schemas)
+│   ├── routes/                 # Express API Endpoint Routes (apiRoutes.js)
+│   ├── scripts/                # Seeder (seedDemoBusinesses.js), Migration (migrateToMongo.js)
+│   ├── tests/                  # Test Suites (calculator, analytics, database, demoBusinesses, runAllTests)
+│   ├── utils/                  # Database Coordinator, MongoStore, Calculator, AI Engine, Forecast Engine
 │   ├── server.js               # Express Server Entrypoint
 │   └── package.json
-├── package.json                # Root Scripts (npm start, npm run dev, npm test)
+├── docs/                       # ARCHITECTURE.md, DEMO_BUSINESSES.md, OFFLINE_MONGODB_GUIDE.md, PRD, EDA
+├── analysis/                   # Independent Python EDA & Forecast Evaluation Layer (eda.py, forecast_eval.py)
+├── package.json                # Root Scripts (npm start, npm run dev, npm test, npm run build)
 ├── .env.example                # Sample Environment Variables
 ├── .gitignore                  # Git Exclusions
+├── LICENSE                     # MIT License
 └── README.md
 ```
 
