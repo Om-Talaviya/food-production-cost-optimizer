@@ -10,6 +10,27 @@ A full-stack decision-support and analytics platform designed for food manufactu
 
 ---
 
+## 🚀 Live Demo & Interactive Walkthrough
+
+The platform is deployed and publicly accessible online:
+
+🔗 **Live Application URL:** **[https://food-production-cost-optimizer.onrender.com](https://food-production-cost-optimizer.onrender.com/)**
+
+### ⚡ Instant Evaluation (Zero Registration Required)
+You can evaluate all platform features without setting up an account:
+
+1. **1-Click Guest DEMO Mode**: Click **"Enter Guest DEMO Mode"** on the Sign In modal to start an isolated sample session immediately.
+2. **Pre-Seeded Manufacturing Businesses**: Click any business card on the Sign In modal to autofill credentials:
+   - 🥐 **Sunrise Artisan Bakery**: `sunrise.bakery@example.com` / `Bakery@Demo2026`
+   - 🥒 **GreenJar Foods**: `greenjar.foods@example.com` / `GreenJar@Demo2026`
+   - 🍿 **CrunchCraft Snacks**: `crunchcraft.snacks@example.com` / `Snacks@Demo2026`
+   - 🥛 **Cream & Culture**: `cream.culture@example.com` / `Dairy@Demo2026`
+
+> [!TIP]
+> Each demo profile features realistic Indian food processing batches, authentic commodity costs in ₹, supply chain pricing, and 8 months of historical batch data powering the 6-month statistical cost forecast and portfolio analytics.
+
+---
+
 ## 🎯 Problem Statement & Executive Overview
 
 In industrial food processing, determining unit profitability is complex due to:
