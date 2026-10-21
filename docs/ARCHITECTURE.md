@@ -24,8 +24,9 @@ Two runtimes share one repository and communicate over a small CSV boundary:
 ┌───────────────▼──────────────────────────────────────────────────┐
 │  Express API (Node, CommonJS)  server/server.js                  │
 │  routes/apiRoutes.js → utils/{calculator,optimizerEngine,        │
-│  forecastEngine, aiEngine, dbFallback}.js                        │
-│  persistence: server/data/store.json (dbFallback)                │
+│  forecastEngine, aiEngine, database, mongoStore, dbFallback}.js   │
+│  persistence: local MongoDB (mongodb://127.0.0.1:27017)           │
+│  with safe JSON fallback (server/data/store.json)                │
 └───────────────┬──────────────────────────────────────────────────┘
                 │  CSV files (analysis/data/*.csv)
 ┌───────────────▼──────────────────────────────────────────────────┐
