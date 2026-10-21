@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Truck, Star, ShieldCheck, Award, Clock, DollarSign, Plus, CheckCircle2
 } from 'lucide-react';
@@ -45,6 +45,20 @@ export default function SupplierAnalysis() {
       reliabilityScorePct: 99
     }
   ]);
+
+  useEffect(() => {
+    fetch('/api/suppliers')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setSuppliers(data.data);
+          if (!data.data.some(s => s.materialName === selectedMaterial)) {
+            setSelectedMaterial(data.data[0].materialName);
+          }
+        }
+      })
+      .catch(err => console.warn('Could not fetch suppliers from server:', err.message));
+  }, []);
 
   const materialsList = Array.from(new Set(suppliers.map(s => s.materialName)));
   const filteredSuppliers = suppliers.filter(s => s.materialName === selectedMaterial);

@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const { db } = require('../utils/dbFallback');
+const { db } = require('../utils/database');
 const { calculateBatchEconomics, calculateWhatIfScenario } = require('../utils/calculator');
 const { analyzeAndOptimizeBatch } = require('../utils/optimizerEngine');
 const { generateCostForecast, getSampleForecastData } = require('../utils/forecastEngine');
@@ -186,8 +186,18 @@ router.post('/ai/advisor', authMiddleware, validate(schemas.aiAdvisor), async (r
       return res.status(400).json({ error: 'Question prompt is required' });
     }
 
-    const batchContext = batchData?.economics ? batchData.economics : calculateBatchEconomics(batchData || {});
-    batchContext.productName = batchData?.productName || 'Food Batch';
+    const economics = batchData?.economics || calculateBatchEconomics(batchData || {});
+    const batchContext = {
+      ...batchData,
+      ...economics,
+      economics,
+      productName: batchData?.productName || 'Food Batch',
+      unitOfMeasure: batchData?.unitOfMeasure || 'kg',
+      batchQuantity: batchData?.batchQuantity || 1000,
+      sellingPricePerUnit: batchData?.sellingPricePerUnit || economics.sellingPricePerUnit || 0,
+      wastagePercentage: batchData?.wastagePercentage !== undefined ? batchData.wastagePercentage : (economics.wastagePercentage || 0),
+      ingredients: Array.isArray(batchData?.ingredients) ? batchData.ingredients : []
+    };
 
     const result = await queryAIAdvisor(question, batchContext);
     res.json({ success: true, data: result });
@@ -256,12 +266,19 @@ router.put('/batches/:id', authMiddleware, validate(schemas.batch), async (req, 
 
 router.delete('/batches/:id', authMiddleware, async (req, res) => {
   try {
+    const existing = await db.getBatchById(req.params.id, req.user.id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
     const deleted = await db.deleteBatch(req.params.id, req.user.id);
     if (!deleted) {
       return res.status(404).json({ error: 'Batch not found' });
     }
     res.json({ success: true, message: 'Batch deleted successfully' });
   } catch (err) {
+    if (err.message && err.message.includes('Unauthorized')) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
     res.status(400).json({ error: err.message });
   }
 });
@@ -298,7 +315,9 @@ router.get('/forecast', authMiddleware, async (req, res) => {
       totalProductionCost: b.economics?.totalProductionCost || 0,
       productionQuantity: b.batchQuantity || 0,
       rawMaterialCost: b.economics?.rawMaterialCost || 0,
-      sellingPrice: b.sellingPricePerUnit || 0
+      sellingPrice: b.sellingPricePerUnit || 0,
+      unitOfMeasure: b.unitOfMeasure,
+      productName: b.productName
     }));
 
     // A forecast needs a believable monthly history. The built-in demo seed

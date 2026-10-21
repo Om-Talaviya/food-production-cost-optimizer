@@ -83,65 +83,214 @@ Provide a structured, professional recommendation covering:
 4. Estimated Financial Impact`;
 }
 
-function generateOfflineAIResponse(question, batch) {
+function generateOfflineAIResponse(question, batch = {}) {
   const q = (question || '').toLowerCase();
-  const rawPct = batch.costContributions?.rawMaterialPct || 50;
-  const wastagePct = batch.wastagePercentage || 5;
-  const marginPct = batch.profitMarginPercentage || 20;
-  const costPerUnit = batch.costPerUnit || 85;
-  const sellingPrice = batch.sellingPricePerUnit || 120;
-  const productName = batch.productName || 'Food Product';
+  const eco = batch.economics || {};
 
-  if (q.includes('reduce') || q.includes('cut cost') || q.includes('lower')) {
-    return `### 💡 Operational Cost Reduction Plan for ${productName}
+  const productName = batch.productName || 'Food Batch';
+  const unit = batch.unitOfMeasure || 'kg';
+  const batchQuantity = Math.max(0, Number(batch.batchQuantity) || 1000);
+  const wastagePct = Number.isFinite(Number(batch.wastagePercentage))
+    ? Number(batch.wastagePercentage)
+    : (Number.isFinite(Number(eco.wastagePercentage)) ? Number(eco.wastagePercentage) : 5);
+  const wastageQuantity = round2(batchQuantity * (wastagePct / 100));
+  const sellableQuantity = Math.max(0, batchQuantity - wastageQuantity) || 1000;
 
-Based on the batch metrics, your total unit production cost is **₹${costPerUnit}**. Here is your top 3 prioritized action plan:
+  const totalCost = Number(batch.totalProductionCost) || Number(eco.totalProductionCost) || 0;
+  const costPerUnit = Number(batch.costPerUnit) || Number(eco.costPerUnit) || (totalCost && sellableQuantity ? round2(totalCost / sellableQuantity) : 85);
+  const sellingPrice = Number(batch.sellingPricePerUnit) || Number(eco.sellingPricePerUnit) || 120;
+  const grossProfit = Number(batch.grossProfit) || Number(eco.grossProfit) || round2((sellableQuantity * sellingPrice) - totalCost);
+  const marginPct = Number.isFinite(Number(batch.profitMarginPercentage))
+    ? round2(Number(batch.profitMarginPercentage))
+    : (Number.isFinite(Number(eco.profitMarginPercentage)) ? round2(Number(eco.profitMarginPercentage)) : 20);
 
-1. **Address Raw Material Concentration (${rawPct}% of Total Cost)**:
-   - Raw materials represent your single largest expenditure (₹${batch.rawMaterialCost || 0}). Negotiating a **5-8% volume discount** or exploring dual-sourcing for primary ingredients will yield immediate savings of **₹${round2((batch.rawMaterialCost || 0) * 0.06)} per batch**.
+  const rawMaterialCost = Number(batch.rawMaterialCost) || Number(eco.rawMaterialCost) || 0;
+  const wastageCost = Number(batch.wastageCost) || Number(eco.wastageCost) || round2(totalCost * (wastagePct / 100));
+  const packagingCost = Number(batch.packagingCost) || Number(eco.packagingCost) || 0;
+  const labourCost = Number(batch.labourCost) || Number(eco.labourCost) || 0;
+  const overheadCost = Number(batch.overheadCost) || Number(eco.overheadCost) || 0;
 
-2. **Mitigate Process Wastage (${wastagePct}% Yield Loss)**:
-   - Currently, wastage costs **₹${batch.wastageCost || 0}**. Reducing yield loss by 2% via tighter filling tolerance and automated scrap recovery saves **₹${round2((batch.wastageCost || 0) * 0.4)} per batch**.
+  const contributions = batch.costContributions || eco.costContributions || {};
+  const rawPct = contributions.rawMaterialPct || (totalCost ? round2((rawMaterialCost / totalCost) * 100) : 50);
+  const packagingPct = contributions.packagingPct || (totalCost ? round2((packagingCost / totalCost) * 100) : 12);
+  const overheadPct = contributions.overheadPct || (totalCost ? round2((overheadCost / totalCost) * 100) : 10);
+  const wastageCostPct = contributions.wastagePct || (totalCost ? round2((wastageCost / totalCost) * 100) : 4.5);
 
-3. **Packaging Optimization (${batch.costContributions?.packagingPct || 12}%)**:
-   - Review outer carton box specs and transition from multi-layer laminate to standard high-barrier pouch film to lower unit packaging cost by 10%.`;
+  const ingredients = Array.isArray(batch.ingredients) ? batch.ingredients : [];
+
+  // 1. RAW MATERIAL PRICE INFLATION (15% SHOCK) - Specific Simulation
+  if (q.includes('15%') || q.includes('inflation') || q.includes('price hike') || q.includes('price spike') || (q.includes('increase') && q.includes('price'))) {
+    const rawCostIncrease = round2(rawMaterialCost * 0.15);
+    const newTotalCost = round2(totalCost + rawCostIncrease);
+    const newUnitCost = round2(newTotalCost / Math.max(1, sellableQuantity));
+    const newGrossProfit = round2((sellableQuantity * sellingPrice) - newTotalCost);
+    const newMarginPct = round2((newGrossProfit / Math.max(1, sellableQuantity * sellingPrice)) * 100);
+
+    return `### 📋 Summary
+Simulating a **+15% price increase** on raw materials for **${productName}**:
+- Raw Material Cost Rises By: **+₹${rawCostIncrease}** (from ₹${rawMaterialCost} to ₹${round2(rawMaterialCost + rawCostIncrease)})
+- Unit Production Cost Increases: **+₹${round2(newUnitCost - costPerUnit)} / ${unit}** (from ₹${costPerUnit} to **₹${newUnitCost}**)
+- Gross Profit Margin Contracts: from **${marginPct}%** down to **${newMarginPct}%** (profit: ₹${newGrossProfit}).
+
+### 🔍 Cost Drivers
+Because raw materials constitute **${rawPct}%** of your cost structure, unhedged ingredient price inflation severely compresses gross margin by **${round2(marginPct - newMarginPct)} percentage points**.
+
+### 🎯 Recommended Actions
+1. **Pass-Through Pricing Formula**: Adjust selling price from ₹${sellingPrice} to **₹${round2(sellingPrice + (newUnitCost - costPerUnit))} / ${unit}** to preserve current unit margin.
+2. **Quarterly Forward Contracts**: Lock in fixed seasonal purchase pricing with fruit/commodity aggregators.
+3. **Recipe Re-Engineering**: Audit formulation pectin/sweetener balance within regulatory guidelines to absorb ingredient shifts.`;
   }
 
-  if (q.includes('why') && (q.includes('high') || q.includes('expensive'))) {
-    return `### 🔍 Cost Driver Diagnostic for ${productName}
+  // 2. BATCH SIZE SCALING & OVERHEAD DILUTION
+  if (q.includes('scaling') || q.includes('scale') || q.includes('batch size') || q.includes('overhead') || q.includes('capacity')) {
+    const overheadPerUnit = round2(overheadCost / Math.max(1, sellableQuantity));
+    const scale15UnitOverhead = round2(overheadCost / Math.max(1, sellableQuantity * 1.5));
+    const scale20UnitOverhead = round2(overheadCost / Math.max(1, sellableQuantity * 2.0));
+    const savings15 = round2(overheadPerUnit - scale15UnitOverhead);
+    const savings20 = round2(overheadPerUnit - scale20UnitOverhead);
 
-Your unit cost (₹${costPerUnit}) is primarily driven by:
-- **Raw Material Expense**: Represents **${rawPct}%** of total expenses.
-- **Process Loss**: **${wastagePct}%** wastage adds ₹${batch.wastageCost || 0} to batch cost.
-- **Fixed Plant Overhead**: Represents **${batch.costContributions?.overheadPct || 10}%**.
+    return `### 📋 Summary
+Fixed plant overhead for **${productName}** is **₹${overheadCost}** (${overheadPct}% of total cost), contributing **₹${overheadPerUnit} / ${unit}** to your current unit cost at **${batchQuantity} ${unit}** scale.
 
-**Key Finding**: Increasing your batch size from ${batch.batchQuantity || 1000} ${batch.unitOfMeasure || 'kg'} to ${batch.batchQuantity ? batch.batchQuantity * 1.5 : 1500} ${batch.unitOfMeasure || 'kg'} will dilute fixed plant overhead and bring unit cost down from ₹${costPerUnit} to **₹${round2(costPerUnit * 0.91)}**.`;
+### 🔍 Cost Drivers
+Scaling batch volume dilutes fixed machine depreciation, facility lease, and supervisor overhead across more sellable units:
+- **At 1.5x Volume (${Math.round(batchQuantity * 1.5)} ${unit})**: Unit overhead falls to **₹${scale15UnitOverhead} / ${unit}** (saves **₹${savings15} / ${unit}**).
+- **At 2.0x Volume (${Math.round(batchQuantity * 2.0)} ${unit})**: Unit overhead falls to **₹${scale20UnitOverhead} / ${unit}** (saves **₹${savings20} / ${unit}**).
+
+### 🎯 Recommended Actions
+1. **Batch Consolidation**: Combine weekly micro-runs into consolidated bi-weekly production cycles.
+2. **CIP Downtime Reduction**: Group similar recipe variants consecutively to eliminate intermediate clean-in-place downtime.
+3. **Off-Peak Energy Scheduling**: Run energy-intensive heating cycles during utility off-peak tariff hours.`;
   }
 
-  if (q.includes('margin') || q.includes('profit') || q.includes('improve')) {
-    return `### 📈 Profit Margin Enhancement Strategy
+  // 3. INGREDIENTS / RAW MATERIAL ANALYSIS
+  if (q.includes('ingredient') || q.includes('raw material') || q.includes('recipe') || q.includes('pulp') || q.includes('sugar')) {
+    const sortedIngredients = [...ingredients]
+      .map(ing => {
+        const qty = Number(ing.quantity) || 0;
+        const price = Number(ing.unitPrice) || 0;
+        const total = Number(ing.totalCost) || (qty * price);
+        return { name: ing.name || 'Ingredient', qty, unit: ing.unit || unit, price, total: round2(total) };
+      })
+      .sort((a, b) => b.total - a.total);
 
-Current Margin: **${marginPct}%** (Gross Profit: ₹${batch.grossProfit || 0} per batch).
+    const topIng = sortedIngredients[0];
+    const topIngShare = topIng && rawMaterialCost > 0 ? round2((topIng.total / rawMaterialCost) * 100) : null;
 
-To achieve a benchmark target margin of **30%**:
-1. **Target Selling Price**: Increasing selling price from ₹${sellingPrice} to **₹${round2(costPerUnit / 0.7)}** expands gross margin to 30%.
-2. **Batch Scale Multiplier**: Increasing batch volume dilutes fixed overheads by up to **₹${round2(costPerUnit * 0.07)}/unit**.
-3. **Yield Loss Reduction**: Cut wastage from ${wastagePct}% to 3% to reclaim ₹${round2((batch.wastageCost || 0) * 0.5)} per batch directly to net margin.`;
+    let ingredientList = '';
+    if (sortedIngredients.length > 0) {
+      ingredientList = sortedIngredients.slice(0, 4).map((ing, i) => (
+        `${i + 1}. **${ing.name}**: ${ing.qty} ${ing.unit} @ ₹${ing.price}/${ing.unit} = **₹${ing.total}**`
+      )).join('\n');
+    } else {
+      ingredientList = `- Total Raw Material Expense: **₹${rawMaterialCost}** (${rawPct}% of total batch production cost)`;
+    }
+
+    return `### 📋 Summary
+Raw materials represent your primary cost center for **${productName}**, totaling **₹${rawMaterialCost}** (${rawPct}% of total batch production cost).
+
+### 🔍 Cost Drivers
+Top ingredients by expenditure:
+${ingredientList}
+${topIng ? `\nPrimary ingredient concentration: **${topIng.name}** accounts for **${topIngShare}%** of your total raw material spend.` : ''}
+
+### 🎯 Recommended Actions
+1. **Volume Contract Negotiation**: Focus supplier negotiations on ${topIng ? `**${topIng.name}**` : 'your primary ingredient'}; a 6% volume discount would save **₹${round2(rawMaterialCost * 0.06)} per batch**.
+2. **Dual-Sourcing Strategy**: Qualify a secondary supplier for primary commodities to prevent spot-market price spikes.
+3. **Moisture & Storage Buffer**: Audit ingredient storage conditions to minimize pre-processing spoilage.`;
   }
 
-  // Default response
-  return `### 🤖 AI Operational Analysis for ${productName}
+  // 4. PROCESS WASTAGE & YIELD LOSS
+  if (q.includes('wastage') || q.includes('waste') || q.includes('yield') || q.includes('scrap') || q.includes('spoilage')) {
+    const reclaimedAt3Pct = wastagePct > 3 ? round2(wastageCost * ((wastagePct - 3) / wastagePct)) : round2(wastageCost * 0.4);
 
-**Current Batch Snapshot**:
-- Production Unit Cost: **₹${costPerUnit}** / ${batch.unitOfMeasure || 'kg'}
-- Gross Profit Margin: **${marginPct}%**
-- Break-Even Selling Price: **₹${batch.breakEvenSellingPrice || costPerUnit}**
-- Primary Expenditure: **Raw Materials (${rawPct}%)** & **Labour (${batch.costContributions?.labourPct || 15}%)**
+    return `### 📋 Summary
+For **${productName}**, process yield loss is currently **${wastagePct}%**, converting **${wastageQuantity} ${unit}** into non-sellable waste and costing **₹${wastageCost}** per batch (${wastageCostPct}% of production expenses).
 
-**Recommendation Summary**:
-- **Focus Area 1**: Supplier contract re-negotiation for high-volume raw materials.
-- **Focus Area 2**: Process yield improvement to lower wastage below 3%.
-- **Focus Area 3**: Scale production volume to optimize machine utilization and energy consumption per unit.`;
+### 🔍 Cost Drivers
+- Gross Production Volume: **${batchQuantity} ${unit}**
+- Net Sellable Output: **${sellableQuantity} ${unit}**
+- Direct Financial Loss: **₹${wastageCost}** in lost direct materials and processing effort.
+
+### 🎯 Recommended Actions
+1. **Filling & Dosing Calibration**: Calibrate inline filling nozzles to eliminate 1.5–2% overfill loss.
+2. **Scrap Recovery & Rework**: Reducing yield loss down to 3.0% will reclaim **₹${reclaimedAt3Pct} per batch** directly to gross profit.
+3. **Thermal Process Controls**: Standardize cooking/pasteurization holding temperatures to prevent batch burn-on scrap.`;
+  }
+
+  // 5. PROFIT MARGIN ENHANCEMENT
+  if (q.includes('margin') || q.includes('profit') || q.includes('25%') || q.includes('30%')) {
+    const target25Price = round2(costPerUnit / 0.75);
+    const target30Price = round2(costPerUnit / 0.70);
+    const priceGap25 = round2(target25Price - sellingPrice);
+
+    return `### 📋 Summary
+Current gross profit margin for **${productName}** is **${marginPct}%**, generating **₹${grossProfit}** gross profit per batch at selling price **₹${sellingPrice} / ${unit}**.
+
+### 🔍 Cost Drivers
+- Unit Production Cost: **₹${costPerUnit} / ${unit}**
+- Break-Even Selling Price: **₹${round2(costPerUnit)} / ${unit}**
+- Target Selling Price for 25% Margin: **₹${target25Price} / ${unit}** (${priceGap25 > 0 ? `+₹${priceGap25} price adjustment` : 'currently achieved'})
+- Target Selling Price for 30% Margin: **₹${target30Price} / ${unit}**
+
+### 🎯 Recommended Actions
+1. **Channel Price Optimization**: Introduce premium 250g retail formats where price elasticity supports higher realized unit revenue.
+2. **Combined Margin Lever**: Implement a 5% ingredient discount (saves ₹${round2(rawMaterialCost * 0.05)}) and a 2% wastage cut (reclaims ₹${round2(wastageCost * 0.35)}) to boost margin by +4.2% without price hikes.
+3. **B2B Volume Bundling**: Offer tiered discounts on large orders to drive overall gross margin rupees while keeping price competitive.`;
+  }
+
+  // 6. GENERAL COST REDUCTION
+  if (q.includes('reduce') || q.includes('lower') || q.includes('cut') || q.includes('save') || q.includes('cost reduction')) {
+    return `### 📋 Summary
+Operational cost reduction strategy for **${productName}** (Current Unit Cost: **₹${costPerUnit} / ${unit}**, Total: **₹${totalCost}**):
+
+### 🔍 Cost Drivers
+Your three largest expenditure categories:
+1. **Raw Materials**: **₹${rawMaterialCost}** (${rawPct}% of cost)
+2. **Packaging**: **₹${packagingCost}** (${packagingPct}% of cost)
+3. **Process Wastage**: **₹${wastageCost}** (${wastageCostPct}% of cost)
+
+### 🎯 Recommended Actions
+1. **Tiered Raw Material Contracts**: Target 5-7% discount on bulk ingredient purchase orders (saves **₹${round2(rawMaterialCost * 0.06)} per batch**).
+2. **Packaging Gauge Optimization**: Transition from heavy corrugated outer boxes to optimized secondary packaging (saves **₹${round2(packagingCost * 0.12)} per batch**).
+3. **Yield Loss Reclamation**: Reduce line scrap from ${wastagePct}% to 3% (reclaims **₹${round2(wastageCost * 0.4)} per batch**).`;
+  }
+
+  // 7. WHY IS COST HIGH / DIAGNOSTIC
+  if (q.includes('why') && (q.includes('high') || q.includes('expensive') || q.includes('driver') || q.includes('component'))) {
+    return `### 📋 Summary
+Cost driver diagnostic for **${productName}** with unit production cost of **₹${costPerUnit} / ${unit}**:
+
+### 🔍 Cost Drivers
+- **Raw Materials**: **${rawPct}%** (₹${rawMaterialCost}) — Primary cost driver.
+- **Packaging Expense**: **${packagingPct}%** (₹${packagingCost}).
+- **Yield Loss & Scrap**: **${wastageCostPct}%** (₹${wastageCost}) at ${wastagePct}% wastage rate.
+- **Plant Overheads**: **${overheadPct}%** (₹${overheadCost}).
+
+### 🎯 Recommended Actions
+1. **Supplier Negotiation**: Focus on raw materials since they constitute ${rawPct}% of your unit cost.
+2. **Batch Volume Increase**: Scaling batch size from ${batchQuantity} ${unit} to ${Math.round(batchQuantity * 1.5)} ${unit} dilutes fixed overhead by ~33%.
+3. **Scrap Audit**: Track rejection logs at each processing phase (prep, cooking, filling, labelling).`;
+  }
+
+  // 8. DEFAULT OPERATIONAL OVERVIEW
+  return `### 📋 Summary
+Operational economics snapshot for **${productName}**:
+- Batch Volume: **${batchQuantity} ${unit}** (Sellable: **${sellableQuantity} ${unit}**)
+- Unit Production Cost: **₹${costPerUnit} / ${unit}**
+- Selling Price: **₹${sellingPrice} / ${unit}**
+- Gross Profit Margin: **${marginPct}%** (Gross Profit: **₹${grossProfit}**)
+
+### 🔍 Cost Drivers
+- Raw Materials: **₹${rawMaterialCost}** (${rawPct}%)
+- Packaging: **₹${packagingCost}** (${packagingPct}%)
+- Fixed Overhead: **₹${overheadCost}** (${overheadPct}%)
+- Wastage Loss: **₹${wastageCost}** (${wastagePct}% yield loss)
+
+### 🎯 Recommended Actions
+1. **Procurement Consolidation**: Negotiate volume terms for top raw materials.
+2. **Yield Loss Target**: Reduce process scrap below 3% to reclaim lost inventory value.
+3. **Capacity Scheduling**: Optimize batch scheduling to dilute fixed plant overheads.`;
 }
 
 async function callGeminiAPI(apiKey, prompt) {
@@ -176,5 +325,6 @@ async function callOpenAIAPI(apiKey, prompt) {
 }
 
 module.exports = {
-  queryAIAdvisor
+  queryAIAdvisor,
+  generateOfflineAIResponse
 };

@@ -116,7 +116,7 @@ The business calculation engine (`server/utils/calculator.js` & `client/src/util
 |---|---|
 | **Frontend** | React 19, Vite, Tailwind CSS, Lucide Icons |
 | **Backend** | Node.js, Express.js |
-| **Database** | Local JSON file store (`server/data/store.json`) — zero-config demo/portfolio persistence |
+| **Database** | Local MongoDB Community Server (offline-first) with automatic deterministic JSON fallback (`server/data/store.json`) |
 | **Authentication** | JSON Web Tokens (JWT), Bcrypt.js |
 | **Validation** | Joi schema validation on all mutating endpoints |
 | **AI Integration** | Google Gemini 1.5 Flash API / OpenAI GPT-4o-mini / Offline Rule Engine (deterministic fallback) |
@@ -164,7 +164,7 @@ Food Production Cost Optimizer/
 ### Quick Start (Zero-Config)
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/Fafda-Jalebi/food-production-cost-optimizer.git
+   git clone https://github.com/Om-Talaviya/food-production-cost-optimizer.git
    cd "Food Production Cost Optimizer"
    ```
 
@@ -242,11 +242,27 @@ This project runs as a **single service**: the Express backend serves the produc
    ```
 3. The application is available at `http://localhost:5000`. Any non-API route returns the built frontend (`client/dist`), while `/api/*` requests are handled by the Express backend. If `client/dist` has not been built, the server runs API-only and logs a warning.
 
-### Persistence Note
-The application persists data to a local JSON file store (`server/data/store.json`). This is convenient for **demo and portfolio use** and runs with zero configuration, but it is **not** a production-grade cloud database. For real production deployments, integrate a managed database (PostgreSQL, MongoDB, etc.) and harden authentication. MongoDB/Mongoose connection support was removed — the application uses the local JSON store exclusively.
+### Offline-First MongoDB & Dual-Engine Persistence
+The platform features an **offline-first persistence coordinator** (`server/utils/database.js`):
+1. **Primary Database**: Local MongoDB Community Server (`mongodb://127.0.0.1:27017/food_production_cost_optimizer`). Runs completely locally with zero internet dependency, indexed collections (`users`, `batches`, `suppliers`), and multi-tenant user scoping.
+2. **Deterministic Fallback**: If the local MongoDB service is stopped or unreachable, the application automatically activates the local JSON file store (`server/data/store.json`) with zero downtime.
+3. **Database Health Diagnostic**: Query `GET /health` to inspect the active storage engine, connection state, and live record counts.
+
+### Demo Businesses & Academic Demonstration
+The platform is pre-seeded with 4 realistic, distinct food manufacturing businesses (accessible via 1-click autofill in the Sign In modal):
+- **🥐 Sunrise Artisan Bakery** (`sunrise.bakery@example.com` / `Bakery@Demo2026`): 10 artisan bakery batches (sourdough, brioche, croissants) measured in `kg`.
+- **🥒 GreenJar Foods** (`greenjar.foods@example.com` / `GreenJar@Demo2026`): 10 traditional pickle & condiment batches with seasonality and mustard oil volatility.
+- **🍿 CrunchCraft Snacks** (`crunchcraft.snacks@example.com` / `Snacks@Demo2026`): 10 snack production batches (namkeen, chips, extruded snacks) with high volume scaling.
+- **🥛 Cream & Culture** (`cream.culture@example.com` / `Dairy@Demo2026`): 10 artisanal dairy batches with multi-unit measurement (`kg` and `L`), triggering intelligent portfolio mixed-units warnings.
+- **Guest DEMO Mode**: An isolated in-memory sample session for quick non-registered walkthroughs.
+
+### Offline AI vs Live AI Integrations
+- **Live AI Mode**: Set `GEMINI_API_KEY` or `OPENAI_API_KEY` in `.env` to enable live LLM evaluation through Google Gemini 1.5 Flash or OpenAI GPT-4o-mini.
+- **Offline Heuristic Mode**: When API keys are omitted or offline, the platform automatically activates its **deterministic rule-based offline AI advisor engine** (`DEMO_OFFLINE_AI`). Responses are calculated directly from active batch parameters, structured in formatted Markdown, and clearly designated with the offline heuristic badge.
+- **Academic Dataset Disclaimers**: In Portfolio Analytics and Cost Forecasting, synthetic demo datasets are prominently marked with amber disclaimer banners (`🧪 Synthetic Academic Dataset Notice`) to distinguish illustrative samples from authentic user batches.
 
 ### Environment Variables
-Set `JWT_SECRET` (required in production), and optionally `GEMINI_API_KEY` or `OPENAI_API_KEY` for the AI Advisor (the app gracefully falls back to an offline rule engine when no key is configured). Optionally set `CORS_ORIGIN` to restrict the allowed frontend origin in production.
+Set `JWT_SECRET` (required in production), and optionally `MONGODB_URI` (defaults to `mongodb://127.0.0.1:27017/food_production_cost_optimizer`), `GEMINI_API_KEY` or `OPENAI_API_KEY`. Optionally set `CORS_ORIGIN` to restrict the allowed frontend origin in production.
 
 ---
 

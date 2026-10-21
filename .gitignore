@@ -27,3 +27,8 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Analysis layer generated artifacts (regenerate with `python analysis/eda.py`,
+# `python analysis/forecast_eval.py`; see analysis/README.md)
+analysis/outputs/*
+!analysis/outputs/.gitkeep

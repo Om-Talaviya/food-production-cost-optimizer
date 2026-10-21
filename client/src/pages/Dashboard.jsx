@@ -123,7 +123,8 @@ export default function Dashboard({
             <AlertCircle className="w-4 h-4 text-purple-400" />
           </div>
           <div className="text-2xl font-extrabold text-purple-300">
-            {eco.breakEvenQuantity || 0} <span className="text-xs text-gray-400 font-normal">{eco.unitOfMeasure}</span>
+            {eco.breakEvenQuantity === null || eco.breakEvenQuantity === undefined ? '—' : eco.breakEvenQuantity}{' '}
+            <span className="text-xs text-gray-400 font-normal">{eco.unitOfMeasure}</span>
           </div>
           <div className="text-[11px] text-gray-400 flex items-center justify-between pt-1">
             <span>Min Price to Break Even:</span>

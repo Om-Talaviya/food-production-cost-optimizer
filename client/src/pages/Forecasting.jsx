@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { getSampleForecastData } from '../utils/forecastEngine';
 import { formatCurrency } from '../utils/calculator';
+import CostForecastChart from '../components/CostForecastChart';
 
 export default function Forecasting() {
   const [forecastData, setForecastData] = useState(getSampleForecastData());
@@ -13,9 +14,12 @@ export default function Forecasting() {
   const fetchForecast = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/forecast');
+      const token = localStorage.getItem('foodcost_token');
+      const res = await fetch('/api/forecast', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.data) {
         setForecastData(data.data);
       }
     } catch (err) {
@@ -30,12 +34,21 @@ export default function Forecasting() {
     fetchForecast();
   }, []);
 
-  const { historicalPoints = [], forecastPoints = [], analytics = {}, isSampleData = false, productName } = forecastData;
+  const { 
+    historicalPoints = [], 
+    forecastPoints = [], 
+    analytics = {}, 
+    isSampleData = false, 
+    productName,
+    unitOfMeasure = 'kg',
+    hasMixedUnits = false
+  } = forecastData;
 
   const handleExportCSV = () => {
+    const unitSuffix = unitOfMeasure ? ` (${unitOfMeasure})` : '';
     const rows = [
-      ['Date', 'Type', 'Cost Per Unit (₹)', 'Lower Bound (₹)', 'Upper Bound (₹)'],
-      ...historicalPoints.map(p => [p.monthLabel, 'Actual Historical', p.actualCostPerUnit, '', '']),
+      ['Date', 'Type', `Cost Per Unit (₹)${unitSuffix}`, 'Lower Bound (₹)', 'Upper Bound (₹)'],
+      ...historicalPoints.map(p => [p.monthLabel, 'Actual Historical', p.actualCostPerUnit !== null && p.actualCostPerUnit !== undefined ? p.actualCostPerUnit : 'N/A', '', '']),
       ...forecastPoints.map(p => [p.monthLabel, 'Statistical Forecast', p.projectedCostPerUnit, p.lowerConfidenceBound, p.upperConfidenceBound])
     ];
 
@@ -132,75 +145,27 @@ export default function Forecasting() {
 
       </div>
 
-      {/* Visual Chart Grid */}
-      <div className="card space-y-6">
-        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span>{isSampleData && productName ? `${productName} — ` : ''}Historical Unit Production Cost Trend & 6-Month Projections</span>
-            </h3>
-            <p className="text-xs text-gray-400">{isSampleData && productName ? `${productName} — actual unit production costs vs projected future costs (sample demo data)` : 'Actual unit production costs (Historical) vs Projected Future Costs (Confidence Interval)'}</p>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-semibold">
-            <span className="flex items-center gap-1 text-emerald-400">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" /> Actual Historical
-            </span>
-            <span className="flex items-center gap-1 text-cyan-400">
-              <span className="w-3 h-3 rounded-full bg-cyan-400 inline-block" /> Projected Forecast
-            </span>
-          </div>
-        </div>
-
-        {/* Visual Bar Time Series Plot */}
-        <div className="space-y-4 pt-2">
-          <div className="grid grid-cols-6 sm:grid-cols-12 lg:grid-cols-18 gap-2 items-end h-64 bg-gray-950/80 p-4 rounded-xl border border-gray-800 overflow-x-auto">
-            
-            {/* Historical Bars */}
-            {historicalPoints.map((hp, idx) => {
-              const maxVal = 140;
-              const heightPct = Math.min(100, Math.max(10, (hp.actualCostPerUnit / maxVal) * 100));
-              return (
-                <div key={`h_${idx}`} className="flex flex-col items-center gap-2 h-full justify-end group min-w-[40px]">
-                  <span className="text-[10px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    ₹{hp.actualCostPerUnit}
-                  </span>
-                  <div 
-                    className="w-full bg-emerald-500/80 hover:bg-emerald-400 rounded-t-sm transition-all" 
-                    style={{ height: `${heightPct}%` }}
-                  />
-                  <span className="text-[9px] text-gray-500 truncate w-full text-center">{hp.monthLabel.split(' ')[0]}</span>
-                </div>
-              );
-            })}
-
-            {/* Forecast Bars */}
-            {forecastPoints.map((fp, idx) => {
-              const maxVal = 140;
-              const heightPct = Math.min(100, Math.max(10, (fp.projectedCostPerUnit / maxVal) * 100));
-              return (
-                <div key={`f_${idx}`} className="flex flex-col items-center gap-2 h-full justify-end group min-w-[40px]">
-                  <span className="text-[10px] font-mono text-cyan-300 opacity-0 group-hover:opacity-100 transition-opacity">
-                    ₹{fp.projectedCostPerUnit}
-                  </span>
-                  <div 
-                    className="w-full bg-cyan-500/60 hover:bg-cyan-400 rounded-t-sm border border-dashed border-cyan-300 transition-all" 
-                    style={{ height: `${heightPct}%` }}
-                  />
-                  <span className="text-[9px] text-cyan-400 truncate w-full text-center font-bold">{fp.monthLabel.split(' ')[0]}</span>
-                </div>
-              );
-            })}
-
-          </div>
-        </div>
-      </div>
+      {/* Interactive Time-Series Cost & Forecast Visualization */}
+      <CostForecastChart
+        historicalPoints={historicalPoints}
+        forecastPoints={forecastPoints}
+        productName={productName}
+        unitOfMeasure={unitOfMeasure}
+        hasMixedUnits={hasMixedUnits}
+        isSampleData={isSampleData}
+        analytics={analytics}
+      />
 
       {/* Detailed Forecast Projection Table */}
       <div className="card space-y-4">
-        <h3 className="text-base font-bold text-white border-b border-gray-800 pb-3">
-          Detailed Projection Schedule & Upper/Lower Bounds
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-3">
+          <h3 className="text-base font-bold text-white">
+            Detailed 6-Month Projection Schedule & Upper/Lower Bounds
+          </h3>
+          <span className="text-xs text-gray-400">
+            Base Unit: <span className="font-mono text-cyan-400 font-semibold">{unitOfMeasure || 'unit'}</span>
+          </span>
+        </div>
 
         <div className="custom-table-container">
           <table className="custom-table text-xs">
@@ -211,22 +176,33 @@ export default function Forecasting() {
                 <th>Projected Unit Cost (₹)</th>
                 <th>95% Lower Bound (₹)</th>
                 <th>95% Upper Bound (₹)</th>
-                <th>Expected Impact</th>
+                <th>Variance vs Last Actual</th>
               </tr>
             </thead>
             <tbody>
-              {forecastPoints.map((fp, idx) => (
-                <tr key={idx}>
-                  <td className="font-bold text-white">{fp.monthLabel}</td>
-                  <td><span className="badge badge-cyan text-[9px]">Projected Estimate</span></td>
-                  <td className="font-bold font-mono text-cyan-400">₹{fp.projectedCostPerUnit} / kg</td>
-                  <td className="font-mono text-emerald-400">₹{fp.lowerConfidenceBound}</td>
-                  <td className="font-mono text-amber-400">₹{fp.upperConfidenceBound}</td>
-                  <td className="text-gray-400">
-                    +{Math.round((fp.projectedCostPerUnit - (historicalPoints[historicalPoints.length - 1]?.actualCostPerUnit || 90)) * 100) / 100} ₹ variance
-                  </td>
-                </tr>
-              ))}
+              {forecastPoints.map((fp, idx) => {
+                const lastActual = [...historicalPoints].reverse().find(p => p.actualCostPerUnit !== null && p.actualCostPerUnit !== undefined)?.actualCostPerUnit;
+                const variance = lastActual != null && fp.projectedCostPerUnit != null
+                  ? Math.round((fp.projectedCostPerUnit - lastActual) * 100) / 100
+                  : null;
+                const varianceText = variance != null
+                  ? (variance >= 0 ? `+₹${variance}` : `-₹${Math.abs(variance)}`)
+                  : 'N/A';
+                const varianceColor = variance != null && variance > 0 ? 'text-amber-400' : 'text-emerald-400';
+
+                return (
+                  <tr key={idx}>
+                    <td className="font-bold text-white">{fp.monthLabel}</td>
+                    <td><span className="badge badge-cyan text-[9px]">Projected Estimate</span></td>
+                    <td className="font-bold font-mono text-cyan-400">₹{fp.projectedCostPerUnit} / {unitOfMeasure || 'unit'}</td>
+                    <td className="font-mono text-emerald-400">₹{fp.lowerConfidenceBound}</td>
+                    <td className="font-mono text-amber-400">₹{fp.upperConfidenceBound}</td>
+                    <td className={`font-mono ${varianceColor}`}>
+                      {varianceText}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

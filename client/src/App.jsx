@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import Calculator from './pages/Calculator';
 import WhatIfSimulator from './pages/WhatIfSimulator';
 import Optimizer from './pages/Optimizer';
@@ -42,6 +43,30 @@ export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem('foodcost_token') || 'demo_token');
   const [showAuthModal, setShowAuthModal] = useState(false);
 
+  // Fetch real persisted batches from backend whenever user or token changes
+  useEffect(() => {
+    if (!token || token === 'demo_token' || token === 'guest_jwt_token_demo_mode') return;
+
+    let isMounted = true;
+    fetch('/api/batches', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setBatches(data.data);
+          setActiveBatchId(data.data[0].id);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load user batches from server:', err.message);
+      });
+
+    return () => { isMounted = false; };
+  }, [token, user?.id]);
+
   // Sync batches to localStorage
   useEffect(() => {
     localStorage.setItem('foodcost_batches', JSON.stringify(batches));
@@ -69,6 +94,18 @@ export default function App() {
     });
 
     setActiveBatchId(full.id);
+
+    // If authenticated, sync with server backend
+    if (token && token !== 'demo_token' && token !== 'guest_jwt_token_demo_mode') {
+      fetch('/api/batches', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(full)
+      }).catch(err => console.warn('Could not sync batch to server:', err.message));
+    }
   };
 
   const handleDuplicateBatch = (id) => {
@@ -84,6 +121,17 @@ export default function App() {
 
     setBatches(prev => [copy, ...prev]);
     setActiveBatchId(copy.id);
+
+    if (token && token !== 'demo_token' && token !== 'guest_jwt_token_demo_mode') {
+      fetch('/api/batches', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(copy)
+      }).catch(err => console.warn('Could not persist duplicated batch to server:', err.message));
+    }
   };
 
   const handleDeleteBatch = (id) => {
@@ -95,6 +143,15 @@ export default function App() {
     if (activeBatchId === id) {
       const remaining = batches.filter(b => b.id !== id);
       setActiveBatchId(remaining[0]?.id);
+    }
+
+    if (token && token !== 'demo_token' && token !== 'guest_jwt_token_demo_mode') {
+      fetch(`/api/batches/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      }).catch(err => console.warn('Could not delete batch on server:', err.message));
     }
   };
 
@@ -110,6 +167,10 @@ export default function App() {
     setToken(null);
     localStorage.removeItem('foodcost_token');
     localStorage.removeItem('foodcost_user');
+    localStorage.removeItem('foodcost_batches');
+    const samples = getInitialSampleBatches();
+    setBatches(samples);
+    setActiveBatchId(samples[0]?.id || 'batch_demo_1');
   };
 
   return (
@@ -144,6 +205,14 @@ export default function App() {
             onNavigate={(tab) => setActiveTab(tab)}
             onDuplicateBatch={handleDuplicateBatch}
             onDeleteBatch={handleDeleteBatch}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsDashboard
+            batches={batches}
+            activeBatch={activeBatch}
+            onNavigate={(tab) => setActiveTab(tab)}
           />
         )}
 
